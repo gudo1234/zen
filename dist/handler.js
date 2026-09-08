@@ -9,7 +9,8 @@ export const OWNERS = [
     { num: "50492280729", lid: "76803058192389@lid" },
     { num: "5492266613038", lid: "35060220747880@lid" },
     { num: "573042648888", lid: "267658821955719@lid" },
-    { num: "5356666669", lid: "48223943188564@lid" }
+    { num: "5356666669", lid: "48223943188564@lid" },
+    { num: "50488723207", lid: "94880558792752@lid" }
 ];
 async function computeStickerHash(buffer) {
     const crypto = await import('crypto');
