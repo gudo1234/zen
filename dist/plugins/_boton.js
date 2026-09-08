@@ -1,10 +1,11 @@
 import { generateWAMessageFromContent } from "@whiskeysockets/baileys";
 import fetch from "node-fetch";
+import sharp from "sharp";
 
 export default {
     name: ["testbutton"],
     help: ["testbutton"],
-    desc: "Probar botones interactivos de WhatsApp",
+    desc: "Probar botones con ubicación",
     tags: ["tools"],
     group: false,
     botAdmin: false,
@@ -13,15 +14,26 @@ export default {
     run: async ({ conn, m, body }) => {
         try {
             const iconUrl = global.icono();
+
             const response = await fetch(iconUrl);
 
             if (!response.ok) {
-                throw new Error(`Error al obtener el icono: ${response.status}`);
+                throw new Error(`No se pudo descargar el icono: ${response.status}`);
             }
 
-            const thumbnail = Buffer.from(
+            const imageBuffer = Buffer.from(
                 await response.arrayBuffer()
             );
+
+            // Convertir obligatoriamente a JPEG y reducir tamaño
+            const thumbnail = await sharp(imageBuffer)
+                .resize(300, 300, {
+                    fit: "cover"
+                })
+                .jpeg({
+                    quality: 80
+                })
+                .toBuffer();
 
             const rawContent = {
                 buttonsMessage: {
@@ -78,7 +90,7 @@ export default {
             await conn.sendMessage(
                 m.chat,
                 {
-                    text: "❌ Ocurrió un error al enviar el mensaje."
+                    text: `❌ Error: ${error.message}`
                 },
                 {
                     quoted: m
