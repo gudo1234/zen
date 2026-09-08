@@ -9,7 +9,7 @@ export default {
 
     run: async ({ conn, m }) => {
         try {
-            if (!m.quoted || !m.quoted.viewOnce) {
+            if (!m.quoted) {
                 return conn.sendMessage(
                     m.chat,
                     { text: "⚠️ Responde a una imagen, video o audio ViewOnce." },
@@ -17,64 +17,112 @@ export default {
                 );
             }
 
+            const { downloadContentFromMessage } =
+                await import("@whiskeysockets/baileys");
+
+            const quoted = m.quoted;
+            const msg = quoted.message || quoted.msg || quoted;
+
+            let viewOnce = msg?.viewOnceMessage;
+            let viewOnceV2 = msg?.viewOnceMessageV2;
+            let viewOnceV2Ext = msg?.viewOnceMessageV2Extension;
+
+            const container = viewOnce || viewOnceV2 || viewOnceV2Ext;
+
+            if (!container?.message) {
+                return conn.sendMessage(
+                    m.chat,
+                    { text: "⚠️ El mensaje citado no es un ViewOnce." },
+                    { quoted: m }
+                );
+            }
+
+            const content = container.message;
+
+            let type;
+            let media;
+
+            if (content.imageMessage) {
+                type = "image";
+                media = content.imageMessage;
+            } else if (content.videoMessage) {
+                type = "video";
+                media = content.videoMessage;
+            } else if (content.audioMessage) {
+                type = "audio";
+                media = content.audioMessage;
+            }
+
+            if (!media) {
+                return conn.sendMessage(
+                    m.chat,
+                    { text: "❌ Este tipo de ViewOnce no es compatible." },
+                    { quoted: m }
+                );
+            }
+
             await m.react("🕒");
 
-            const buffer = await m.quoted.download(false);
+            const stream = await downloadContentFromMessage(media, type);
 
-            if (!buffer) {
+            const chunks = [];
+
+            for await (const chunk of stream) {
+                chunks.push(chunk);
+            }
+
+            const buffer = Buffer.concat(chunks);
+
+            if (!buffer.length) {
                 return conn.sendMessage(
                     m.chat,
-                    { text: "❌ No pude descargar el mensaje ViewOnce." },
+                    { text: "❌ No se pudo descargar el ViewOnce." },
                     { quoted: m }
                 );
             }
 
-            if (/videoMessage/i.test(m.quoted.mtype)) {
-                return conn.sendMessage(
-                    m.chat,
-                    {
-                        video: buffer,
-                        caption: m.quoted.caption || ""
-                    },
-                    { quoted: m }
-                );
-            }
+            const caption = media.caption || "";
 
-            if (/imageMessage/i.test(m.quoted.mtype)) {
+            if (type === "image") {
                 return conn.sendMessage(
                     m.chat,
                     {
                         image: buffer,
-                        caption: m.quoted.caption || ""
+                        caption
                     },
                     { quoted: m }
                 );
             }
 
-            if (/audioMessage/i.test(m.quoted.mtype)) {
+            if (type === "video") {
+                return conn.sendMessage(
+                    m.chat,
+                    {
+                        video: buffer,
+                        caption
+                    },
+                    { quoted: m }
+                );
+            }
+
+            if (type === "audio") {
                 return conn.sendMessage(
                     m.chat,
                     {
                         audio: buffer,
-                        mimetype: "audio/mpeg",
-                        ptt: true
+                        mimetype: media.mimetype || "audio/mpeg",
+                        ptt: media.ptt || false
                     },
                     { quoted: m }
                 );
             }
-
-            return conn.sendMessage(
-                m.chat,
-                { text: "❌ Ese tipo de ViewOnce no es compatible." },
-                { quoted: m }
-            );
 
         } catch (e) {
             console.error("❌ Error en ver:", e);
 
             return conn.sendMessage(
                 m.chat,
-                { text: "❌ Ocurrió un error al intentar revelar el ViewOnce." },
+                { text: "❌ Ocurrió un error al revelar el ViewOnce." },
                 { quoted: m }
             );
         }
