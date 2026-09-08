@@ -19,7 +19,7 @@ export default {
 
     botAdmin: true,
 
-    register: true,
+    register: false,
 
     run: async ({ conn, m }) => {
         try {
