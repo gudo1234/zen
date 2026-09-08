@@ -1,6 +1,6 @@
 export default {
-    name: ["ver"],
-    help: ["ver", "readviewonce", "read", "readvo", "rvo"],
+    name:  ["ver", "readviewonce", "read", "readvo", "rvo"],
+    help: ["ver"],
     desc: "Revela mensajes ViewOnce",
     tags: ["tools"],
     group: false,
