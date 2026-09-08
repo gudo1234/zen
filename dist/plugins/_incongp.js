@@ -24,11 +24,6 @@ export default {
     run: async ({ conn, m }) => {
         try {
             const groupId = m.chat;
-
-            // ==========================================
-            // DETECTAR IMAGEN
-            // ==========================================
-
             let q = null;
 
             if (m.quoted) {
@@ -56,10 +51,6 @@ export default {
                 );
             }
 
-            // ==========================================
-            // VALIDAR MIME
-            // ==========================================
-
             const mimetype =
                 q.mimetype ||
                 q.msg?.mimetype ||
@@ -72,10 +63,6 @@ export default {
                 );
             }
 
-            // ==========================================
-            // DESCARGAR IMAGEN
-            // ==========================================
-
             let mediaBuffer = null;
 
             if (typeof q.download === "function") {
@@ -84,7 +71,6 @@ export default {
                 } catch {}
             }
 
-            // Respaldo para mensajes citados
             if (!mediaBuffer) {
                 try {
                     const imageMessage =
@@ -118,61 +104,66 @@ export default {
                 );
             }
 
-            // ==========================================
-            // PROCESAR IMAGEN
-            // ==========================================
+            const size = 720;
 
-            const metadata = await sharp(mediaBuffer).metadata();
+            const background = await sharp(mediaBuffer)
+                .resize(size, size, {
+                    fit: "cover",
+                    position: "centre"
+                })
+                .blur(30)
+                .modulate({
+                    brightness: 0.75
+                })
+                .jpeg({
+                    quality: 90
+                })
+                .toBuffer();
 
-            const width = metadata.width || 720;
-            const height = metadata.height || 720;
+            const foreground = await sharp(mediaBuffer)
+                .resize(size, size, {
+                    fit: "contain",
+                    background: {
+                        r: 0,
+                        g: 0,
+                        b: 0,
+                        alpha: 0
+                    }
+                })
+                .png()
+                .toBuffer();
 
-            const processed = await sharp(mediaBuffer)
-    .resize(720, 720, {
-        fit: "contain",
-        background: {
-            r: 0,
-            g: 0,
-            b: 0,
-            alpha: 0
-        }
-    })
-    .jpeg({
-        quality: 95,
-        mozjpeg: true
-    })
-    .toBuffer();
-
-            // ==========================================
-            // ACTUALIZAR FOTO DEL GRUPO
-            // ==========================================
+            const processed = await sharp(background)
+                .composite([
+                    {
+                        input: foreground,
+                        gravity: "centre"
+                    }
+                ])
+                .jpeg({
+                    quality: 95,
+                    mozjpeg: true
+                })
+                .toBuffer();
 
             await conn.query({
                 tag: "iq",
-
                 attrs: {
                     to: S_WHATSAPP_NET,
                     target: groupId,
                     type: "set",
                     xmlns: "w:profile:picture"
                 },
-
                 content: [
                     {
                         tag: "picture",
-
                         attrs: {
                             type: "image"
                         },
-
                         content: processed
                     }
                 ]
             });
-
-            // ==========================================
-            // RESPUESTA
-            // ==========================================
 
             await m.reply(
                 "✅ *Foto del grupo actualizada correctamente.*"
