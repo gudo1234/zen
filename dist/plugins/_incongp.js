@@ -128,20 +128,20 @@ export default {
             const height = metadata.height || 720;
 
             const processed = await sharp(mediaBuffer)
-                .resize(
-                    width > height
-                        ? { width: 720 }
-                        : { height: 720 },
-                    {
-                        fit: "inside",
-                        withoutEnlargement: false
-                    }
-                )
-                .jpeg({
-                    quality: 90,
-                    mozjpeg: true
-                })
-                .toBuffer();
+    .resize(720, 720, {
+        fit: "contain",
+        background: {
+            r: 0,
+            g: 0,
+            b: 0,
+            alpha: 0
+        }
+    })
+    .jpeg({
+        quality: 95,
+        mozjpeg: true
+    })
+    .toBuffer();
 
             // ==========================================
             // ACTUALIZAR FOTO DEL GRUPO
