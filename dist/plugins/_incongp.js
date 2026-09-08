@@ -104,42 +104,13 @@ export default {
                 );
             }
 
-            const size = 720;
-
-            const background = await sharp(mediaBuffer)
-                .resize(size, size, {
-                    fit: "cover",
-                    position: "centre"
+            const processed = await sharp(mediaBuffer)
+                .resize({
+                    width: 720,
+                    height: 720,
+                    fit: "inside",
+                    withoutEnlargement: false
                 })
-                .blur(30)
-                .modulate({
-                    brightness: 0.75
-                })
-                .jpeg({
-                    quality: 90
-                })
-                .toBuffer();
-
-            const foreground = await sharp(mediaBuffer)
-                .resize(size, size, {
-                    fit: "contain",
-                    background: {
-                        r: 0,
-                        g: 0,
-                        b: 0,
-                        alpha: 0
-                    }
-                })
-                .png()
-                .toBuffer();
-
-            const processed = await sharp(background)
-                .composite([
-                    {
-                        input: foreground,
-                        gravity: "centre"
-                    }
-                ])
                 .jpeg({
                     quality: 95,
                     mozjpeg: true
@@ -180,8 +151,4 @@ export default {
             await m.react("❌").catch(() => {});
 
             return m.reply(
-                `❌ *Error al cambiar la foto del grupo.*\n\n> ${err?.message || "Error desconocido"}`
-            );
-        }
-    }
-};
+                `❌ *Error
