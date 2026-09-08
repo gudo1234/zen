@@ -104,6 +104,7 @@ export default {
                 );
             }
 
+            //== Mantiene la imagen completa y su proporción original
             const processed = await sharp(mediaBuffer)
                 .resize({
                     width: 720,
@@ -151,4 +152,8 @@ export default {
             await m.react("❌").catch(() => {});
 
             return m.reply(
-                `❌ *Error
+                `❌ *Error al cambiar la foto del grupo.*\n\n> ${err?.message || "Error desconocido"}`
+            );
+        }
+    }
+};
