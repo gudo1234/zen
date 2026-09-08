@@ -73,7 +73,7 @@ function groupCommandsByDesc(items) {
     return groups;
 }
 export default {
-    name: ["menu", "help"],
+    name: ["menu", "help", "memu", "comandos", "menú"],
     help: ["menu", "help"],
     desc: "Muestra todos los comandos por categoría",
     tags: ["main"],
