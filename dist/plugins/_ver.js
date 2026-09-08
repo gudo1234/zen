@@ -2,7 +2,7 @@ export default {
     name: ["ver"],
     help: ["ver", "readviewonce", "read", "readvo", "rvo"],
     desc: "Revela mensajes ViewOnce",
-    tags: ["herramientas"],
+    tags: ["tools"],
     group: false,
     botAdmin: false,
     register: false,
