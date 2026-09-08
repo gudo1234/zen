@@ -12,32 +12,41 @@ export default {
             if (!m.quoted) {
                 return conn.sendMessage(
                     m.chat,
-                    { text: "⚠️ Responde a una imagen, video o audio ViewOnce." },
+                    {
+                        text: "⚠️ Responde a una imagen, video o audio ViewOnce."
+                    },
                     { quoted: m }
                 );
             }
 
-            const { downloadContentFromMessage } =
-                await import("@whiskeysockets/baileys");
+            const {
+                downloadContentFromMessage
+            } = await import("@whiskeysockets/baileys");
 
-            const quoted = m.quoted;
-            const msg = quoted.message || quoted.msg || quoted;
+            // Igual que en tu plugin de stickers
+            const q = m.quoted ? m.quoted : m;
+            const msg = q.msg || q;
 
-            let viewOnce = msg?.viewOnceMessage;
-            let viewOnceV2 = msg?.viewOnceMessageV2;
-            let viewOnceV2Ext = msg?.viewOnceMessageV2Extension;
+            // Buscar ViewOnce en todas las estructuras posibles
+            const viewOnce =
+                msg?.viewOnceMessage ||
+                msg?.viewOnceMessageV2 ||
+                msg?.viewOnceMessageV2Extension ||
+                msg?.message?.viewOnceMessage ||
+                msg?.message?.viewOnceMessageV2 ||
+                msg?.message?.viewOnceMessageV2Extension;
 
-            const container = viewOnce || viewOnceV2 || viewOnceV2Ext;
-
-            if (!container?.message) {
+            if (!viewOnce?.message) {
                 return conn.sendMessage(
                     m.chat,
-                    { text: "⚠️ El mensaje citado no es un ViewOnce." },
+                    {
+                        text: "⚠️ El mensaje citado no es un ViewOnce."
+                    },
                     { quoted: m }
                 );
             }
 
-            const content = container.message;
+            const content = viewOnce.message;
 
             let type;
             let media;
@@ -56,14 +65,19 @@ export default {
             if (!media) {
                 return conn.sendMessage(
                     m.chat,
-                    { text: "❌ Este tipo de ViewOnce no es compatible." },
+                    {
+                        text: "❌ Este tipo de ViewOnce no es compatible."
+                    },
                     { quoted: m }
                 );
             }
 
             await m.react("🕒");
 
-            const stream = await downloadContentFromMessage(media, type);
+            const stream = await downloadContentFromMessage(
+                media,
+                type
+            );
 
             const chunks = [];
 
@@ -76,7 +90,9 @@ export default {
             if (!buffer.length) {
                 return conn.sendMessage(
                     m.chat,
-                    { text: "❌ No se pudo descargar el ViewOnce." },
+                    {
+                        text: "❌ No se pudo descargar el ViewOnce."
+                    },
                     { quoted: m }
                 );
             }
@@ -84,7 +100,7 @@ export default {
             const caption = media.caption || "";
 
             if (type === "image") {
-                return conn.sendMessage(
+                await conn.sendMessage(
                     m.chat,
                     {
                         image: buffer,
@@ -94,8 +110,8 @@ export default {
                 );
             }
 
-            if (type === "video") {
-                return conn.sendMessage(
+            else if (type === "video") {
+                await conn.sendMessage(
                     m.chat,
                     {
                         video: buffer,
@@ -105,8 +121,8 @@ export default {
                 );
             }
 
-            if (type === "audio") {
-                return conn.sendMessage(
+            else if (type === "audio") {
+                await conn.sendMessage(
                     m.chat,
                     {
                         audio: buffer,
@@ -117,12 +133,20 @@ export default {
                 );
             }
 
+            await m.react("✅");
+
         } catch (e) {
             console.error("❌ Error en ver:", e);
 
+            try {
+                await m.react("❌");
+            } catch {}
+
             return conn.sendMessage(
                 m.chat,
-                { text: "❌ Ocurrió un error al revelar el ViewOnce." },
+                {
+                    text: "❌ Ocurrió un error al revelar el ViewOnce."
+                },
                 { quoted: m }
             );
         }
