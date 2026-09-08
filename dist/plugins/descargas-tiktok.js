@@ -1,68 +1,170 @@
 import fetch from "node-fetch";
-import axios from "axios";
+
+const APIKEY = "oboe";
+
 export default {
-    name: ["tiktok", "tt"],
-    tags: ["downloader"],
-    help: ["tiktok <url>"],
-    desc: "Descargar video de TikTok",
+    name: ["tk", "tt", "ttv", "tiktok", "tkmp4", "ttvid", "tiktokvid"],
+
+    help: [
+        "tiktok <texto>",
+        "tiktok <url>"
+    ],
+
+    desc: "Busca y descarga videos de TikTok.",
+
+    tags: [
+        "downloader"
+    ],
+
+    group: true,
+    botAdmin: false,
+    register: false,
     limitPrem: true,
-    limit: 1,
+
     run: async ({ conn, m, args, prefijo, cmd }) => {
-        const url = args?.[0] || "";
-        if (!url)
-            return m.reply(null, `${m.e?.warn || "⚠️"} *¿Qué TikTok quieres descargar?*\n\nEjemplo:\n${prefijo + cmd} https://vm.tiktok.com/ZM6T4X1RY/`);
-        const isTikTok = /^(https?:\/\/)?((www|vm|vt|m|t)\.)?tiktok\.com\/\S+/i.test(url);
-        if (!isTikTok)
-            return m.reply("❌ Enlace inválido.");
+
+        const input = args?.join(" ").trim() || "";
+
+        if (!input) {
+            return m.reply(
+                `${m.e?.warn || "⚠️"} *¿Qué TikTok quieres descargar?*\n\n` +
+                `Ejemplo:\n${prefijo + cmd} Diles\n` +
+                `${prefijo + cmd} https://www.tiktok.com/@vitotvo.ec/video/7677072456238058759`
+            );
+        }
+
         await m.react?.("⌛");
+
         try {
-            const apiKey = process.env.API_KEY || "";
-            const downloadAttempts = [
-                async () => {
-                    const res = await fetch(`https://api-sky.ultraplus.click/api/download/tiktok.js?url=${encodeURIComponent(url)}`, { headers: { Authorization: "Bearer pxFkVcczMsSe" } });
-                    const data = await res.json();
-                    return data?.data?.video || null;
-                },
-                async () => {
-                    if (!apiKey)
-                        return null;
-                    const res = await fetch(`https://api.mitzuki.xyz/download/tiktok?url=${encodeURIComponent(url)}&apikey=${encodeURIComponent(apiKey)}`);
-                    const data = await res.json();
-                    return data?.data?.media?.video || null;
-                },
-                async () => {
-                    const { data } = await axios.get(`https://api.delirius.store/download/tiktok?url=${encodeURIComponent(url)}`);
-                    const video = data?.data?.meta?.media?.[0];
-                    return video?.org || video?.hd || video?.wm || null;
-                },
-                async () => {
-                    const { data } = await axios.get(`https://api.dorratz.com/v2/tiktok-dl?url=${encodeURIComponent(url)}`);
-                    const media = data?.data?.media;
-                    return media?.org || media?.hd || media?.wm || null;
-                }
-            ];
+
+            const isTikTok =
+                /^(https?:\/\/)?((www|vm|vt|m|t)\.)?tiktok\.com\/\S+/i.test(input);
+
             let videoUrl = null;
-            for (const attempt of downloadAttempts) {
-                try {
-                    videoUrl = await attempt();
-                    if (videoUrl)
-                        break;
-                }
-                catch (err) {
-                    console.error("❌ Error intento TikTok:", err?.message || err);
-                }
+            let result = null;
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━
+            // 🔗 DESCARGA POR ENLACE
+            // ━━━━━━━━━━━━━━━━━━━━━━━
+            if (isTikTok) {
+
+                const apiKey = process.env.API_KEY || "";
+
+                const res = await fetch(
+                    `https://api.mitzuki.xyz/download/tiktok?url=${encodeURIComponent(input)}` +
+                    `&apikey=${encodeURIComponent(apiKey)}`
+                );
+
+                const data = await res.json();
+
+                videoUrl =
+                    data?.data?.media?.video || null;
+
             }
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━
+            // 🔎 BÚSQUEDA POR TEXTO
+            // ━━━━━━━━━━━━━━━━━━━━━━━
+            else {
+
+                const res = await fetch(
+                    `https://api.alyacore.xyz/search/tiktok?query=${encodeURIComponent(input)}` +
+                    `&key=${encodeURIComponent(APIKEY)}`
+                );
+
+                const data = await res.json();
+
+                if (
+                    !data?.status ||
+                    !Array.isArray(data.data) ||
+                    !data.data.length
+                ) {
+                    throw new Error("No se encontraron resultados.");
+                }
+
+                result = data.data.find(x => x?.dl);
+
+                if (!result) {
+                    throw new Error(
+                        "El resultado no contiene enlace de descarga."
+                    );
+                }
+
+                videoUrl = result.dl;
+            }
+
             if (!videoUrl) {
                 await m.react?.("❌");
-                return m.reply("❌ No se pudo obtener el video desde ninguna API.");
+                return m.reply(
+                    "❌ No se pudo obtener el video de TikTok."
+                );
             }
-            await conn.sendMessage(m.chat, { video: { url: videoUrl }, caption: "*🔰 Aquí está tu video de TikTok*" }, { quoted: m });
+
+            // ━━━━━━━━━━━━━━━━━━━━━━━
+            // 🎥 ENVIAR VIDEO
+            // ━━━━━━━━━━━━━━━━━━━━━━━
+            let caption =
+                "*🔰 Aquí está tu video de TikTok*";
+
+            if (result) {
+
+                const author = result.author || {};
+                const stats = result.stats || {};
+
+                const formatter = n => {
+                    n = Number(n) || 0;
+
+                    if (n >= 1e9)
+                        return (n / 1e9).toFixed(1) + "B";
+
+                    if (n >= 1e6)
+                        return (n / 1e6).toFixed(1) + "M";
+
+                    if (n >= 1e3)
+                        return (n / 1e3).toFixed(1) + "K";
+
+                    return String(n);
+                };
+
+                caption =
+                    `${result.title || "Sin título"}\n\n` +
+                    `> Autor › ${author.nickname || author.unique_id || "Desconocido"}\n` +
+                    `> Duración › ${result.duration || "-"}\n` +
+                    `> Región › ${result.region || "-"}\n` +
+                    `> Vistas › ${formatter(stats.views)}\n` +
+                    `> Likes › ${formatter(stats.likes)}\n` +
+                    `> Url › ${result.url || "-"}`;
+            }
+
+            await conn.sendMessage(
+                m.chat,
+                {
+                    video: {
+                        url: videoUrl
+                    },
+                    caption,
+                    mimetype: "video/mp4",
+                    fileName: "tiktok.mp4"
+                },
+                {
+                    quoted: m
+                }
+            );
+
             await m.react?.("✅");
-            m.success = true;
-        }
-        catch (e) {
-            console.error("❌ Error TikTok:", e);
+
+        } catch (e) {
+
+            console.error(
+                "❌ TIKTOK:",
+                e
+            );
+
             await m.react?.("❌");
+
+            await m.reply(
+                `❌ No pude procesar el TikTok.\n\n> ${e?.message || e}`
+            );
         }
     }
 };
