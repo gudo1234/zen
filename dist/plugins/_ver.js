@@ -13,60 +13,349 @@ export default {
                 return conn.sendMessage(
                     m.chat,
                     {
-                        text: "⚠️ Responde a una imagen, video o audio ViewOnce."
+                        text: "⚠️ Responde directamente a una imagen, video o audio ViewOnce."
                     },
                     { quoted: m }
                 );
             }
 
             const {
-                downloadContentFromMessage
+                downloadContentFromMessage,
+                normalizeMessageContent
             } = await import("@whiskeysockets/baileys");
 
-            // Igual que en tu plugin de stickers
-            const q = m.quoted ? m.quoted : m;
-            const msg = q.msg || q;
+            const q = m.quoted;
 
-            // Buscar ViewOnce en todas las estructuras posibles
-            const viewOnce =
-                msg?.viewOnceMessage ||
-                msg?.viewOnceMessageV2 ||
-                msg?.viewOnceMessageV2Extension ||
-                msg?.message?.viewOnceMessage ||
-                msg?.message?.viewOnceMessageV2 ||
-                msg?.message?.viewOnceMessageV2Extension;
+            /*
+             * ---------------------------------------------------------
+             * 1. OBTENER TODAS LAS POSIBLES ESTRUCTURAS DEL CITADO
+             * ---------------------------------------------------------
+             */
 
-            if (!viewOnce?.message) {
-                return conn.sendMessage(
-                    m.chat,
-                    {
-                        text: "⚠️ El mensaje citado no es un ViewOnce."
-                    },
-                    { quoted: m }
-                );
+            const candidates = [];
+
+            const addCandidate = value => {
+                if (!value) return;
+
+                if (
+                    typeof value === "object" &&
+                    !candidates.includes(value)
+                ) {
+                    candidates.push(value);
+                }
+            };
+
+            addCandidate(q);
+            addCandidate(q.msg);
+            addCandidate(q.message);
+            addCandidate(q.msg?.message);
+
+            // Algunos serializers tienen getMessage()
+            try {
+                if (typeof q.getMessage === "function") {
+                    const result = await q.getMessage();
+                    addCandidate(result);
+                    addCandidate(result?.message);
+                }
+            } catch {}
+
+            /*
+             * ---------------------------------------------------------
+             * 2. BUSCADOR RECURSIVO DE VIEWONCE
+             * ---------------------------------------------------------
+             *
+             * Busca aunque el mensaje venga dentro de:
+             *
+             * viewOnceMessage
+             * viewOnceMessageV2
+             * viewOnceMessageV2Extension
+             * ephemeralMessage
+             * documentWithCaptionMessage
+             * etc.
+             */
+
+            const VIEW_ONCE_KEYS = new Set([
+                "viewOnceMessage",
+                "viewOnceMessageV2",
+                "viewOnceMessageV2Extension"
+            ]);
+
+            const MEDIA_KEYS = new Set([
+                "imageMessage",
+                "videoMessage",
+                "audioMessage",
+                "documentMessage"
+            ]);
+
+            const visited = new Set();
+
+            function findViewOnce(obj, depth = 0) {
+                if (!obj || typeof obj !== "object") {
+                    return null;
+                }
+
+                if (depth > 12) {
+                    return null;
+                }
+
+                if (visited.has(obj)) {
+                    return null;
+                }
+
+                visited.add(obj);
+
+                /*
+                 * Si el propio objeto es un ViewOnce
+                 */
+                for (const key of VIEW_ONCE_KEYS) {
+                    if (obj[key]?.message) {
+                        return obj[key].message;
+                    }
+                }
+
+                /*
+                 * Si ya llegamos directamente al contenido multimedia
+                 */
+                for (const key of MEDIA_KEYS) {
+                    if (obj[key]) {
+                        return obj;
+                    }
+                }
+
+                /*
+                 * Buscar dentro de todas las propiedades.
+                 */
+                for (const key of Object.keys(obj)) {
+                    try {
+                        const value = obj[key];
+
+                        if (!value || typeof value !== "object") {
+                            continue;
+                        }
+
+                        const result = findViewOnce(value, depth + 1);
+
+                        if (result) {
+                            return result;
+                        }
+                    } catch {}
+                }
+
+                return null;
             }
 
-            const content = viewOnce.message;
+            let content = null;
 
-            let type;
-            let media;
+            /*
+             * ---------------------------------------------------------
+             * 3. INTENTAR NORMALIZAR COMO HACE BAILEYS
+             * ---------------------------------------------------------
+             */
 
-            if (content.imageMessage) {
+            for (const candidate of candidates) {
+                try {
+                    const normalized =
+                        normalizeMessageContent(candidate);
+
+                    if (normalized) {
+                        content = findViewOnce(normalized);
+
+                        if (content) break;
+                    }
+                } catch {}
+            }
+
+            /*
+             * ---------------------------------------------------------
+             * 4. BUSCAR DIRECTAMENTE EN CADA CANDIDATO
+             * ---------------------------------------------------------
+             */
+
+            if (!content) {
+                for (const candidate of candidates) {
+                    content = findViewOnce(candidate);
+
+                    if (content) break;
+                }
+            }
+
+            /*
+             * ---------------------------------------------------------
+             * 5. DETERMINAR EL TIPO DE MEDIA
+             * ---------------------------------------------------------
+             */
+
+            let type = null;
+            let media = null;
+
+            if (content?.imageMessage) {
                 type = "image";
                 media = content.imageMessage;
-            } else if (content.videoMessage) {
+            }
+
+            else if (content?.videoMessage) {
                 type = "video";
                 media = content.videoMessage;
-            } else if (content.audioMessage) {
+            }
+
+            else if (content?.audioMessage) {
                 type = "audio";
                 media = content.audioMessage;
             }
 
+            else if (content?.documentMessage) {
+                type = "document";
+                media = content.documentMessage;
+            }
+
+            /*
+             * ---------------------------------------------------------
+             * 6. SI NO ENCONTRAMOS WRAPPER, REVISAR EL CITADO DIRECTO
+             * ---------------------------------------------------------
+             */
+
             if (!media) {
+                const directCandidates = [
+                    q.msg,
+                    q.message,
+                    q
+                ];
+
+                for (const candidate of directCandidates) {
+                    if (!candidate) continue;
+
+                    if (candidate.imageMessage) {
+                        type = "image";
+                        media = candidate.imageMessage;
+                        break;
+                    }
+
+                    if (candidate.videoMessage) {
+                        type = "video";
+                        media = candidate.videoMessage;
+                        break;
+                    }
+
+                    if (candidate.audioMessage) {
+                        type = "audio";
+                        media = candidate.audioMessage;
+                        break;
+                    }
+
+                    if (candidate.documentMessage) {
+                        type = "document";
+                        media = candidate.documentMessage;
+                        break;
+                    }
+                }
+            }
+
+            /*
+             * ---------------------------------------------------------
+             * 7. ÚLTIMO RECURSO:
+             *    USAR EL DOWNLOAD() DEL SERIALIZER
+             * ---------------------------------------------------------
+             *
+             * Muchos handlers basados en Yuki/Mystic ya agregan
+             * q.download(), y esto evita depender de cómo expongan
+             * internamente el ViewOnce.
+             */
+
+            if (!media && typeof q.download === "function") {
+                try {
+                    await m.react("🕒");
+
+                    const buffer = await q.download();
+
+                    if (buffer && buffer.length) {
+                        const mime =
+                            (q.msg || q).mimetype ||
+                            q.mimetype ||
+                            "";
+
+                        if (/image/i.test(mime)) {
+                            return conn.sendMessage(
+                                m.chat,
+                                {
+                                    image: buffer
+                                },
+                                { quoted: m }
+                            );
+                        }
+
+                        if (/video/i.test(mime)) {
+                            return conn.sendMessage(
+                                m.chat,
+                                {
+                                    video: buffer
+                                },
+                                { quoted: m }
+                            );
+                        }
+
+                        if (/audio/i.test(mime)) {
+                            return conn.sendMessage(
+                                m.chat,
+                                {
+                                    audio: buffer,
+                                    mimetype: mime || "audio/mpeg",
+                                    ptt: (q.msg || q).ptt || false
+                                },
+                                { quoted: m }
+                            );
+                        }
+
+                        if (/application|document/i.test(mime)) {
+                            return conn.sendMessage(
+                                m.chat,
+                                {
+                                    document: buffer,
+                                    mimetype: mime || "application/octet-stream",
+                                    fileName:
+                                        (q.msg || q).fileName ||
+                                        "archivo"
+                                },
+                                { quoted: m }
+                            );
+                        }
+                    }
+                } catch (downloadError) {
+                    console.error(
+                        "⚠️ Fallback q.download() falló:",
+                        downloadError
+                    );
+                }
+            }
+
+            /*
+             * ---------------------------------------------------------
+             * 8. SI REALMENTE NO SE DETECTÓ
+             * ---------------------------------------------------------
+             */
+
+            if (!media) {
+                console.log(
+                    "⚠️ VER: No se detectó ViewOnce.",
+                    {
+                        hasQuoted: !!m.quoted,
+                        quotedKeys: q
+                            ? Object.keys(q)
+                            : [],
+                        msgKeys: q?.msg
+                            ? Object.keys(q.msg)
+                            : [],
+                        messageKeys: q?.message
+                            ? Object.keys(q.message)
+                            : []
+                    }
+                );
+
                 return conn.sendMessage(
                     m.chat,
                     {
-                        text: "❌ Este tipo de ViewOnce no es compatible."
+                        text:
+                            "⚠️ No pude detectar el contenido multimedia del mensaje citado.\n\n" +
+                            "Asegúrate de responder directamente al ViewOnce."
                     },
                     { quoted: m }
                 );
@@ -74,10 +363,17 @@ export default {
 
             await m.react("🕒");
 
-            const stream = await downloadContentFromMessage(
-                media,
-                type
-            );
+            /*
+             * ---------------------------------------------------------
+             * 9. DESCARGAR MEDIA CON BAILEYS
+             * ---------------------------------------------------------
+             */
+
+            const stream =
+                await downloadContentFromMessage(
+                    media,
+                    type
+                );
 
             const chunks = [];
 
@@ -91,13 +387,19 @@ export default {
                 return conn.sendMessage(
                     m.chat,
                     {
-                        text: "❌ No se pudo descargar el ViewOnce."
+                        text: "❌ No se pudo descargar el contenido del ViewOnce."
                     },
                     { quoted: m }
                 );
             }
 
             const caption = media.caption || "";
+
+            /*
+             * ---------------------------------------------------------
+             * 10. ENVIAR RESULTADO
+             * ---------------------------------------------------------
+             */
 
             if (type === "image") {
                 await conn.sendMessage(
@@ -126,8 +428,26 @@ export default {
                     m.chat,
                     {
                         audio: buffer,
-                        mimetype: media.mimetype || "audio/mpeg",
+                        mimetype:
+                            media.mimetype ||
+                            "audio/mpeg",
                         ptt: media.ptt || false
+                    },
+                    { quoted: m }
+                );
+            }
+
+            else if (type === "document") {
+                await conn.sendMessage(
+                    m.chat,
+                    {
+                        document: buffer,
+                        mimetype:
+                            media.mimetype ||
+                            "application/octet-stream",
+                        fileName:
+                            media.fileName ||
+                            "archivo"
                     },
                     { quoted: m }
                 );
@@ -136,7 +456,10 @@ export default {
             await m.react("✅");
 
         } catch (e) {
-            console.error("❌ Error en ver:", e);
+            console.error(
+                "❌ Error completo en ver:",
+                e
+            );
 
             try {
                 await m.react("❌");
@@ -145,7 +468,8 @@ export default {
             return conn.sendMessage(
                 m.chat,
                 {
-                    text: "❌ Ocurrió un error al revelar el ViewOnce."
+                    text:
+                        "❌ Ocurrió un error al revelar el ViewOnce."
                 },
                 { quoted: m }
             );
