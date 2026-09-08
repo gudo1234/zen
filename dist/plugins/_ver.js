@@ -7,17 +7,13 @@ export default {
     botAdmin: false,
     register: false,
 
-    run: async ({ conn, m, body }) => {
+    run: async ({ conn, m }) => {
         try {
-            if (!m.quoted) {
-                return m.reply(
-                    `Responde a una imagen, video o audio ViewOnce.`
-                );
-            }
-
-            if (!m.quoted.viewOnce) {
-                return m.reply(
-                    `Responde a una imagen, video o audio ViewOnce.`
+            if (!m.quoted || !m.quoted.viewOnce) {
+                return conn.sendMessage(
+                    m.chat,
+                    { text: "⚠️ Responde a una imagen, video o audio ViewOnce." },
+                    { quoted: m }
                 );
             }
 
@@ -26,70 +22,60 @@ export default {
             const buffer = await m.quoted.download(false);
 
             if (!buffer) {
-                return m.reply(
-                    `No pude descargar el mensaje ViewOnce.`
+                return conn.sendMessage(
+                    m.chat,
+                    { text: "❌ No pude descargar el mensaje ViewOnce." },
+                    { quoted: m }
                 );
             }
-
-            // ==========================================
-            // VIDEO
-            // ==========================================
 
             if (/videoMessage/i.test(m.quoted.mtype)) {
-                return conn.sendFile(
+                return conn.sendMessage(
                     m.chat,
-                    buffer,
-                    "media.mp4",
-                    m.quoted.caption || "",
-                    m
+                    {
+                        video: buffer,
+                        caption: m.quoted.caption || ""
+                    },
+                    { quoted: m }
                 );
             }
-
-            // ==========================================
-            // IMAGEN
-            // ==========================================
 
             if (/imageMessage/i.test(m.quoted.mtype)) {
-                return conn.sendFile(
+                return conn.sendMessage(
                     m.chat,
-                    buffer,
-                    "media.jpg",
-                    m.quoted.caption || "",
-                    m
+                    {
+                        image: buffer,
+                        caption: m.quoted.caption || ""
+                    },
+                    { quoted: m }
                 );
             }
-
-            // ==========================================
-            // AUDIO
-            // ==========================================
 
             if (/audioMessage/i.test(m.quoted.mtype)) {
-                return conn.sendFile(
+                return conn.sendMessage(
                     m.chat,
-                    buffer,
-                    "audio.mp3",
-                    "",
-                    m,
-                    true,
                     {
-                        type: "audioMessage",
+                        audio: buffer,
+                        mimetype: "audio/mpeg",
                         ptt: true
-                    }
+                    },
+                    { quoted: m }
                 );
             }
 
-            return m.reply(
-                `Ese tipo de ViewOnce no es compatible.`
+            return conn.sendMessage(
+                m.chat,
+                { text: "❌ Ese tipo de ViewOnce no es compatible." },
+                { quoted: m }
             );
 
         } catch (e) {
-            console.error(
-                "❌ Error en ver:",
-                e
-            );
+            console.error("❌ Error en ver:", e);
 
-            return m.reply(
-                `Ocurrió un error al intentar revelar el ViewOnce.`
+            return conn.sendMessage(
+                m.chat,
+                { text: "❌ Ocurrió un error al intentar revelar el ViewOnce." },
+                { quoted: m }
             );
         }
     }
