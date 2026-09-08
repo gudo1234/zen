@@ -6,7 +6,7 @@ export default {
     name: ["testbutton"],
     help: ["testbutton"],
     desc: "Probar botones con ubicación",
-    tags: ["tools"],
+    tags: ["nada"],
     group: false,
     botAdmin: false,
     register: false,
@@ -43,7 +43,7 @@ export default {
                         jpegThumbnail: thumbnail
                     },
 
-                    contentText: "Halo dunia",
+                    contentText: "prueba de botón",
 
                     footerText: "Zentríx Bot",
 
@@ -56,7 +56,7 @@ export default {
                             type: 1
                         },
                         {
-                            buttonId: "compra",
+                            buttonId: ".ava",
                             buttonText: {
                                 displayText: "👤 Profile"
                             },
