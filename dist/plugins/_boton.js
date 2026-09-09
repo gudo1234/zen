@@ -56,7 +56,7 @@ export default {
                             type: 1
                         },
                         {
-                            buttonId: ".ava",
+                            buttonId: ".perfil",
                             buttonText: {
                                 displayText: "👤 Profile"
                             },
