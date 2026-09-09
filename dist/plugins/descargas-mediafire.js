@@ -101,7 +101,6 @@ export default {
         await m.react("🕒");
 
         try {
-            // API ÚNICA: DELIRIUS ONLINE
             const api =
                 `https://api.delirius.online/download/mediafire?url=${encodeURIComponent(link)}`;
 
@@ -128,8 +127,6 @@ export default {
                 info.mime ||
                 mimeTypes[extension] ||
                 "application/octet-stream";
-
-            // Descargar el archivo real
             const file = await axios.get(info.link, {
                 responseType: "arraybuffer",
                 timeout: 120000,
