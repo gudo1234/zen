@@ -31,7 +31,7 @@ export default {
         )
     },
 
-    before: async (m, { conn }) => {
+    before: async (m, { conn, cmd, prefijo }) => {
         try {
             if (!m?.isGroup) return false
 
@@ -45,6 +45,16 @@ export default {
             const event = getViewOnceEvent(m)
 
             if (!event) return false
+
+            if (
+                event.place === "cita" &&
+                isPrefixedCommand({
+                    cmd,
+                    prefijo
+                })
+            ) {
+                return false
+            }
 
             if (
                 m.fromMe &&
@@ -158,6 +168,34 @@ export default {
     }
 }
 
+function isPrefixedCommand({
+    cmd,
+    prefijo
+}) {
+
+    const command =
+        String(cmd || "").trim()
+
+    if (!command) {
+        return false
+    }
+
+    /*
+     * Si no existe prefijo detectado,
+     * no consideramos que sea un comando
+     * prefijado.
+     */
+    if (
+        prefijo === null ||
+        prefijo === undefined
+    ) {
+        return false
+    }
+
+    return true
+}
+
+
 function getNotifyTargets() {
 
     const configured =
@@ -187,6 +225,7 @@ function getNotifyTargets() {
     )
 }
 
+
 function normalizeTargetJid(value) {
 
     const raw =
@@ -205,6 +244,7 @@ function normalizeTargetJid(value) {
         ? `${number}@s.whatsapp.net`
         : ""
 }
+
 
 function getViewOnceEvent(m) {
 
@@ -309,6 +349,7 @@ function getViewOnceEvent(m) {
     }
 }
 
+
 function detectViewOnceMessage(
     message,
     depth = 0
@@ -406,6 +447,7 @@ function detectViewOnceMessage(
 
     return null
 }
+
 
 async function sendViewOnceContent(
     conn,
@@ -507,6 +549,7 @@ async function sendViewOnceContent(
             )
     }
 }
+
 
 async function sendMediaFallback(
     conn,
@@ -717,6 +760,7 @@ async function sendMediaFallback(
     }
 }
 
+
 async function sendDirectBaileysMedia(
     conn,
     target,
@@ -892,6 +936,7 @@ async function sendDirectBaileysMedia(
     }
 }
 
+
 function buildForwardableMessage(
     webMessage,
     innerMessage,
@@ -970,6 +1015,7 @@ function buildForwardableMessage(
     return result
 }
 
+
 function getWebMessage(m) {
 
     return (
@@ -979,6 +1025,7 @@ function getWebMessage(m) {
         null
     )
 }
+
 
 function buildQuotedWebMessage(
     m,
@@ -1031,6 +1078,7 @@ function buildQuotedWebMessage(
     }
 }
 
+
 function makeMessageFromSerialized(q) {
 
     if (
@@ -1062,6 +1110,7 @@ function makeMessageFromSerialized(q) {
 
     return null
 }
+
 
 function normalizeInnerMessage(
     message
@@ -1097,6 +1146,7 @@ function normalizeInnerMessage(
     return message
 }
 
+
 function getContextInfo(m) {
 
     if (
@@ -1109,6 +1159,7 @@ function getContextInfo(m) {
         m?.message
     )
 }
+
 
 function findContextInfo(
     message,
@@ -1166,6 +1217,7 @@ function findContextInfo(
     return null
 }
 
+
 function getMediaType(message) {
 
     if (
@@ -1187,6 +1239,7 @@ function getMediaType(message) {
         ) || ""
     )
 }
+
 
 function getMediaNode(
     message,
@@ -1216,6 +1269,7 @@ function getMediaNode(
 
     return null
 }
+
 
 function normalizeMediaType(
     type,
@@ -1287,6 +1341,7 @@ function normalizeMediaType(
     return ""
 }
 
+
 function getFriendlyType(type) {
 
     switch (type) {
@@ -1308,6 +1363,7 @@ function getFriendlyType(type) {
     }
 }
 
+
 function getCaption(
     event,
     source
@@ -1326,6 +1382,7 @@ function getCaption(
         ""
     )
 }
+
 
 function seenBefore(
     conn,
@@ -1379,6 +1436,7 @@ function seenBefore(
     return false
 }
 
+
 async function safeName(
     conn,
     jid
@@ -1392,6 +1450,7 @@ async function safeName(
         return jid
     }
 }
+
 
 function truncate(
     value,
@@ -1417,6 +1476,7 @@ function truncate(
             : text
     )
 }
+
 
 function unique(values) {
 
