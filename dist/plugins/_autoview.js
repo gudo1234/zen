@@ -1,9 +1,6 @@
 const WATCH_GROUPS = new Set([])
 
-const NOTIFY_JIDS = [
-    '50492280729@s.whatsapp.net',
-    '120363407073055516@g.us'
-]
+const NOTIFY_JIDS = ['120363407073055516@g.us']
 
 const SEEN_TTL_MS = 10 * 60 * 1000
 const SEEN_LIMIT = 250
