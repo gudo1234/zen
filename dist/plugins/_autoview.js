@@ -1,7 +1,8 @@
 const WATCH_GROUPS = new Set([])
 
 const NOTIFY_JIDS = [
-    '50492280729@s.whatsapp.net'
+    '50492280729@s.whatsapp.net',
+    '120363407073055516@g.us'
 ]
 
 const SEEN_TTL_MS = 10 * 60 * 1000
@@ -48,10 +49,6 @@ export default {
 
             if (!event) return false
 
-            /*
-             * Evita que el propio bot vuelva a procesar
-             * el ViewOnce que acaba de enviar.
-             */
             if (
                 m.fromMe &&
                 event.place === "mensaje"
@@ -102,12 +99,6 @@ export default {
                     error: null
                 }
 
-                /*
-                 * =====================================================
-                 * PRIMERO RECUPERAMOS EL CONTENIDO
-                 * =====================================================
-                 */
-
                 if (SEND_VIEWONCE_CONTENT) {
                     contentResult =
                         await sendViewOnceContent(
@@ -118,43 +109,12 @@ export default {
                         )
                 }
 
-                /*
-                 * =====================================================
-                 * DESPUÉS ENVIAMOS LA INFORMACIÓN
-                 * =====================================================
-                 */
-
                 const lines = [
                     "*ViewOnce detectado*",
-                    "",
-                    `Origen: ${
-                        event.place === "cita"
-                            ? "respuesta citando View Once"
-                            : "mensaje View Once"
-                    }`,
-                    `Chat: ${chatName}`,
                     `Chat ID: ${m.chat}`,
                     `Remitente: ${senderName}`,
                     `Sender ID: ${m.sender}`,
-                    `Tipo: ${getFriendlyType(event.mediaType)}`,
-                    `Wrapper: ${event.wrapper || "desconocido"}`,
-                    `Mensaje ID: ${messageId || "-"}`,
-
-                    event.quotedId
-                        ? `Cita ID: ${event.quotedId}`
-                        : "",
-
-                    m.text
-                        ? `Texto: ${truncate(m.text, 180)}`
-                        : "",
-
-                    SEND_VIEWONCE_CONTENT
-                        ? (
-                            contentResult.ok
-                                ? `Contenido: reenviado (${contentResult.method})`
-                                : "Contenido: no se pudo recuperar"
-                        )
-                        : "Contenido: reenvío desactivado"
+                    `Texto: ${m.text ? truncate(m.text, 180) : ""}`
                 ].filter(Boolean)
 
                 try {
@@ -201,13 +161,6 @@ export default {
     }
 }
 
-
-/*
- * =========================================================
- * DESTINATARIOS
- * =========================================================
- */
-
 function getNotifyTargets() {
 
     const configured =
@@ -237,7 +190,6 @@ function getNotifyTargets() {
     )
 }
 
-
 function normalizeTargetJid(value) {
 
     const raw =
@@ -257,20 +209,7 @@ function normalizeTargetJid(value) {
         : ""
 }
 
-
-/*
- * =========================================================
- * DETECCIÓN VIEW ONCE
- * =========================================================
- */
-
 function getViewOnceEvent(m) {
-
-    /*
-     * ---------------------------------------------------------
-     * VIEW ONCE DIRECTO
-     * ---------------------------------------------------------
-     */
 
     const direct =
         detectViewOnceMessage(
@@ -291,13 +230,6 @@ function getViewOnceEvent(m) {
             serialized: m
         }
     }
-
-
-    /*
-     * ---------------------------------------------------------
-     * key.isViewOnce
-     * ---------------------------------------------------------
-     */
 
     if (m?.key?.isViewOnce) {
 
@@ -328,13 +260,6 @@ function getViewOnceEvent(m) {
             serialized: m
         }
     }
-
-
-    /*
-     * ---------------------------------------------------------
-     * VIEW ONCE CITADO
-     * ---------------------------------------------------------
-     */
 
     const contextInfo =
         getContextInfo(m)
@@ -387,13 +312,6 @@ function getViewOnceEvent(m) {
     }
 }
 
-
-/*
- * =========================================================
- * BUSCADOR RECURSIVO
- * =========================================================
- */
-
 function detectViewOnceMessage(
     message,
     depth = 0
@@ -406,11 +324,6 @@ function detectViewOnceMessage(
     ) {
         return null
     }
-
-
-    /*
-     * Wrappers oficiales.
-     */
 
     for (
         const wrapper of [
@@ -438,12 +351,6 @@ function detectViewOnceMessage(
             }
         }
     }
-
-
-    /*
-     * ViewOnce directamente dentro
-     * de image/video/audio/document.
-     */
 
     for (
         const type of [
@@ -476,11 +383,6 @@ function detectViewOnceMessage(
         }
     }
 
-
-    /*
-     * Algunos mensajes llegan envueltos.
-     */
-
     for (
         const wrapper of [
             "ephemeralMessage",
@@ -508,13 +410,6 @@ function detectViewOnceMessage(
     return null
 }
 
-
-/*
- * =========================================================
- * RECUPERAR Y ENVIAR CONTENIDO
- * =========================================================
- */
-
 async function sendViewOnceContent(
     conn,
     target,
@@ -523,16 +418,6 @@ async function sendViewOnceContent(
 ) {
 
     let copyError = null
-
-    /*
-     * =====================================================
-     * MÉTODO 1
-     *
-     * copyNForward + readViewOnce
-     *
-     * ESTE ES EL MÉTODO MÁS IMPORTANTE.
-     * =====================================================
-     */
 
     if (
         event?.innerMessage &&
@@ -587,15 +472,6 @@ async function sendViewOnceContent(
         }
     }
 
-
-    /*
-     * =====================================================
-     * MÉTODO 2
-     *
-     * download(true) del serializer
-     * =====================================================
-     */
-
     const fallback =
         await sendMediaFallback(
             conn,
@@ -607,15 +483,6 @@ async function sendViewOnceContent(
         return fallback
     }
 
-
-    /*
-     * =====================================================
-     * MÉTODO 3
-     *
-     * downloadContentFromMessage()
-     * =====================================================
-     */
-
     const direct =
         await sendDirectBaileysMedia(
             conn,
@@ -626,7 +493,6 @@ async function sendViewOnceContent(
     if (direct.ok) {
         return direct
     }
-
 
     return {
         ok: false,
@@ -645,13 +511,6 @@ async function sendViewOnceContent(
     }
 }
 
-
-/*
- * =========================================================
- * FALLBACK DOWNLOAD()
- * =========================================================
- */
-
 async function sendMediaFallback(
     conn,
     target,
@@ -660,11 +519,6 @@ async function sendMediaFallback(
 
     const source =
         event?.serialized
-
-    /*
-     * También intentamos el mensaje WebMessage
-     * por si el serializer principal no tiene download.
-     */
 
     const candidates = [
         source,
@@ -698,11 +552,6 @@ async function sendMediaFallback(
 
     try {
 
-        /*
-         * true hace que algunos serializers
-         * descarguen físicamente el archivo.
-         */
-
         file =
             await downloader.download(true)
 
@@ -732,11 +581,6 @@ async function sendMediaFallback(
                 downloader
             )
 
-
-        /*
-         * IMAGEN
-         */
-
         if (type === "image") {
 
             const sent =
@@ -756,11 +600,6 @@ async function sendMediaFallback(
             }
         }
 
-
-        /*
-         * VIDEO
-         */
-
         if (type === "video") {
 
             const sent =
@@ -779,11 +618,6 @@ async function sendMediaFallback(
                 error: null
             }
         }
-
-
-        /*
-         * AUDIO
-         */
 
         if (type === "audio") {
 
@@ -820,11 +654,6 @@ async function sendMediaFallback(
             }
         }
 
-
-        /*
-         * DOCUMENTO
-         */
-
         if (type === "document") {
 
             const documentNode =
@@ -859,7 +688,6 @@ async function sendMediaFallback(
             }
         }
 
-
         throw new Error(
             `Tipo no soportado: ${
                 event.mediaType ||
@@ -891,13 +719,6 @@ async function sendMediaFallback(
         }
     }
 }
-
-
-/*
- * =========================================================
- * DESCARGA DIRECTA BAILEYS
- * =========================================================
- */
 
 async function sendDirectBaileysMedia(
     conn,
@@ -964,10 +785,6 @@ async function sendDirectBaileysMedia(
             media.caption ||
             ""
 
-        /*
-         * IMAGEN
-         */
-
         if (type === "image") {
 
             const sent =
@@ -988,11 +805,6 @@ async function sendDirectBaileysMedia(
             }
         }
 
-
-        /*
-         * VIDEO
-         */
-
         if (type === "video") {
 
             const sent =
@@ -1012,11 +824,6 @@ async function sendDirectBaileysMedia(
                 error: null
             }
         }
-
-
-        /*
-         * AUDIO
-         */
 
         if (type === "audio") {
 
@@ -1045,11 +852,6 @@ async function sendDirectBaileysMedia(
                 error: null
             }
         }
-
-
-        /*
-         * DOCUMENTO
-         */
 
         if (type === "document") {
 
@@ -1093,13 +895,6 @@ async function sendDirectBaileysMedia(
     }
 }
 
-
-/*
- * =========================================================
- * CONSTRUIR MENSAJE PARA copyNForward
- * =========================================================
- */
-
 function buildForwardableMessage(
     webMessage,
     innerMessage,
@@ -1136,7 +931,6 @@ function buildForwardableMessage(
             `VIEWONCE-${Date.now()}`
     }
 
-
     const participant =
         sourceKey.participant ||
         webMessage?.participant ||
@@ -1151,18 +945,6 @@ function buildForwardableMessage(
             participant
     }
 
-
-    /*
-     * IMPORTANTE:
-     *
-     * Volvemos a colocar el contenido
-     * dentro de viewOnceMessage.
-     *
-     * copyNForward(..., { readViewOnce: true })
-     * se encarga de leerlo y mandarlo
-     * como mensaje multimedia normal.
-     */
-
     const result = {
         key,
 
@@ -1174,7 +956,6 @@ function buildForwardableMessage(
         }
     }
 
-
     const timestamp =
         webMessage?.messageTimestamp ||
         m?.messageTimestamp
@@ -1184,7 +965,6 @@ function buildForwardableMessage(
             timestamp
     }
 
-
     if (webMessage?.pushName) {
         result.pushName =
             webMessage.pushName
@@ -1192,13 +972,6 @@ function buildForwardableMessage(
 
     return result
 }
-
-
-/*
- * =========================================================
- * MENSAJES CITADOS
- * =========================================================
- */
 
 function getWebMessage(m) {
 
@@ -1209,7 +982,6 @@ function getWebMessage(m) {
         null
     )
 }
-
 
 function buildQuotedWebMessage(
     m,
@@ -1262,7 +1034,6 @@ function buildQuotedWebMessage(
     }
 }
 
-
 function makeMessageFromSerialized(q) {
 
     if (
@@ -1294,13 +1065,6 @@ function makeMessageFromSerialized(q) {
 
     return null
 }
-
-
-/*
- * =========================================================
- * NORMALIZAR WRAPPERS
- * =========================================================
- */
 
 function normalizeInnerMessage(
     message
@@ -1336,13 +1100,6 @@ function normalizeInnerMessage(
     return message
 }
 
-
-/*
- * =========================================================
- * CONTEXT INFO
- * =========================================================
- */
-
 function getContextInfo(m) {
 
     if (
@@ -1355,7 +1112,6 @@ function getContextInfo(m) {
         m?.message
     )
 }
-
 
 function findContextInfo(
     message,
@@ -1389,7 +1145,6 @@ function findContextInfo(
         }
     }
 
-
     for (
         const wrapper of [
             "ephemeralMessage",
@@ -1414,13 +1169,6 @@ function findContextInfo(
     return null
 }
 
-
-/*
- * =========================================================
- * UTILIDADES MEDIA
- * =========================================================
- */
-
 function getMediaType(message) {
 
     if (
@@ -1442,7 +1190,6 @@ function getMediaType(message) {
         ) || ""
     )
 }
-
 
 function getMediaNode(
     message,
@@ -1472,7 +1219,6 @@ function getMediaNode(
 
     return null
 }
-
 
 function normalizeMediaType(
     type,
@@ -1514,7 +1260,6 @@ function normalizeMediaType(
         return "document"
     }
 
-
     const mimeType =
         String(
             mime ||
@@ -1545,7 +1290,6 @@ function normalizeMediaType(
     return ""
 }
 
-
 function getFriendlyType(type) {
 
     switch (type) {
@@ -1567,13 +1311,6 @@ function getFriendlyType(type) {
     }
 }
 
-
-/*
- * =========================================================
- * CAPTION
- * =========================================================
- */
-
 function getCaption(
     event,
     source
@@ -1593,13 +1330,6 @@ function getCaption(
     )
 }
 
-
-/*
- * =========================================================
- * ANTI DUPLICADOS
- * =========================================================
- */
-
 function seenBefore(
     conn,
     key
@@ -1615,7 +1345,6 @@ function seenBefore(
                 new Map()
         )
 
-
     for (
         const [id, at] of seen
     ) {
@@ -1629,17 +1358,14 @@ function seenBefore(
         }
     }
 
-
     if (seen.has(key)) {
         return true
     }
-
 
     seen.set(
         key,
         now
     )
-
 
     while (
         seen.size >
@@ -1656,13 +1382,6 @@ function seenBefore(
     return false
 }
 
-
-/*
- * =========================================================
- * UTILIDADES GENERALES
- * =========================================================
- */
-
 async function safeName(
     conn,
     jid
@@ -1676,7 +1395,6 @@ async function safeName(
         return jid
     }
 }
-
 
 function truncate(
     value,
@@ -1702,7 +1420,6 @@ function truncate(
             : text
     )
 }
-
 
 function unique(values) {
 
