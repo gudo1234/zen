@@ -27,12 +27,33 @@ export default {
 
         const groupCode = match[1]
 
-        const targetChat = await conn.groupAcceptInvite(groupCode)
-            .catch(() => groupCode)
+        let targetChat = null
+
+        try {
+
+            const inviteInfo = await conn.groupGetInviteInfo(groupCode)
+
+            if (inviteInfo?.id)
+                targetChat = inviteInfo.id
+
+        } catch (err) {
+            console.log("⚠️ No se pudo obtener la información de la invitación.")
+        }
+
+        try {
+
+            const joined = await conn.groupAcceptInvite(groupCode)
+
+            if (typeof joined === "string" && joined.includes("@g.us"))
+                targetChat = joined
+
+        } catch (err) {
+            console.log("⚠️ El bot posiblemente ya está en el grupo.")
+        }
 
         if (!targetChat)
             return m.reply(
-                "❌ No pude unirme al grupo. El enlace puede estar vencido o ser privado."
+                "❌ No pude identificar el grupo. El enlace puede estar vencido, ser inválido o el bot no puede acceder al grupo."
             )
 
         const metadata = await conn.groupMetadata(targetChat)
@@ -40,7 +61,7 @@ export default {
 
         if (!metadata)
             return m.reply(
-                "❌ No pude obtener la información del grupo."
+                "❌ No pude obtener la información del grupo. Verifica que el bot pueda acceder al grupo."
             )
 
         const users = metadata.participants
