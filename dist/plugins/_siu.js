@@ -47,9 +47,13 @@ export default {
             .map(u => u.id)
             .filter(id => id !== conn.user.jid)
 
-        const quotedMsg = m.quoted?.message || {}
+        let mediaSource = null
+        let mediaMsg = null
+        let mediaType = null
 
-        const quotedType = Object.keys(quotedMsg).find(key =>
+        const currentMsg = m.message || {}
+
+        mediaType = Object.keys(currentMsg).find(key =>
             [
                 "imageMessage",
                 "videoMessage",
@@ -59,11 +63,36 @@ export default {
             ].includes(key)
         )
 
-        if (!quotedType) {
+        if (mediaType) {
+            mediaSource = m
+            mediaMsg = currentMsg
+        }
+
+        if (!mediaType && m.quoted?.message) {
+
+            const quotedMsg = m.quoted.message
+
+            mediaType = Object.keys(quotedMsg).find(key =>
+                [
+                    "imageMessage",
+                    "videoMessage",
+                    "audioMessage",
+                    "stickerMessage",
+                    "documentMessage"
+                ].includes(key)
+            )
+
+            if (mediaType) {
+                mediaSource = m.quoted
+                mediaMsg = quotedMsg
+            }
+        }
+
+        if (!mediaType) {
 
             if (!caption)
                 return m.reply(
-                    `${m.e.warn} Debes escribir un texto después de |`
+                    `${m.e.warn} Debes escribir un texto después de | o responder a un multimedia.`
                 )
 
             await conn.sendMessage(
@@ -83,7 +112,7 @@ export default {
 
         try {
 
-            const media = await m.quoted.download()
+            const media = await mediaSource.download()
 
             const msg = {
                 contextInfo: {
@@ -91,24 +120,29 @@ export default {
                 }
             }
 
-            let quotedCaption = ""
+            let mediaCaption = ""
 
-            if (quotedType === "imageMessage")
-                quotedCaption = quotedMsg.imageMessage?.caption || ""
+            if (mediaType === "imageMessage")
+                mediaCaption =
+                    mediaMsg.imageMessage?.caption || ""
 
-            else if (quotedType === "videoMessage")
-                quotedCaption = quotedMsg.videoMessage?.caption || ""
+            else if (mediaType === "videoMessage")
+                mediaCaption =
+                    mediaMsg.videoMessage?.caption || ""
 
-            else if (quotedType === "documentMessage")
-                quotedCaption = quotedMsg.documentMessage?.caption || ""
+            else if (mediaType === "documentMessage")
+                mediaCaption =
+                    mediaMsg.documentMessage?.caption || ""
 
             const finalCaption =
                 caption ||
-                quotedCaption
+                mediaCaption ||
+                ""
 
-            switch (quotedType) {
+            switch (mediaType) {
 
                 case "imageMessage":
+
                     msg.image = media
 
                     if (finalCaption)
@@ -117,6 +151,7 @@ export default {
                     break
 
                 case "videoMessage":
+
                     msg.video = media
 
                     if (finalCaption)
@@ -125,6 +160,7 @@ export default {
                     break
 
                 case "audioMessage":
+
                     msg.audio = media
                     msg.ptt = true
                     msg.fileName = "siu.mp3"
@@ -133,16 +169,23 @@ export default {
                     break
 
                 case "stickerMessage":
+
                     msg.sticker = media
 
                     break
 
                 case "documentMessage":
+
                     msg.document = media
+
                     msg.fileName =
-                        m.quoted.fileName || "archivo"
+                        mediaMsg.documentMessage?.fileName ||
+                        mediaSource.fileName ||
+                        "archivo"
+
                     msg.mimetype =
-                        m.quoted.mimetype ||
+                        mediaMsg.documentMessage?.mimetype ||
+                        mediaSource.mimetype ||
                         "application/octet-stream"
 
                     if (finalCaption)
@@ -158,7 +201,7 @@ export default {
             )
 
             if (
-                quotedType === "stickerMessage" &&
+                mediaType === "stickerMessage" &&
                 finalCaption
             ) {
                 await conn.sendMessage(
