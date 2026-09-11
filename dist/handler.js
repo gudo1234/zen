@@ -605,7 +605,7 @@ export async function handler(conn, m) {
         console.error("❌ Error verificando ban:", e);
     }
     //banuser
-    try {
+   /* try {
         console.log("senderJid:", senderJid);
         console.log("senderLid:", senderLid);
         console.log("senderNumber:", senderNumber);
@@ -632,7 +632,7 @@ export async function handler(conn, m) {
     }
     catch (e) {
         console.error("❌ Error verificando ban de usuario:", e);
-    }
+    }*/
     const messageContent = m.message?.ephemeralMessage?.message || m.message?.viewOnceMessage?.message || m.message;
     let text = "";
     if (messageContent?.conversation)
