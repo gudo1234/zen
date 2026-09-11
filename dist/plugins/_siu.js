@@ -1,7 +1,7 @@
 export default {
     name: ["siu"],
-    help: ["siu <link del grupo> <texto>"],
-    desc: "Envía un mensaje multimedia citado a otro grupo mencionando a todos.",
+    help: ["siu <link del grupo> | <texto>"],
+    desc: "Envía texto o multimedia a otro grupo mencionando a todos.",
     tags: ["rupo"],
     group: true,
     admin: true,
@@ -10,26 +10,22 @@ export default {
 
         if (!text?.trim())
             return m.reply(
-                `${m.e.warn} Usa:\n${prefijo + cmd} <link del grupo> <texto>`
+                `${m.e.warn} Usa:\n${prefijo + cmd} <link del grupo> | <texto>`
             )
 
-        if (!m.quoted || !m.quoted.message)
-            return m.reply(
-                `${m.e.warn} Debes responder a un mensaje multimedia.`
-            )
+        const partes = text.split("|")
 
-        const link = text.match(
+        const link = partes[0]?.trim()
+        const caption = partes.slice(1).join("|").trim()
+
+        const match = link.match(
             /(?:https?:\/\/)?chat\.whatsapp\.com\/([0-9A-Za-z]+)/
         )
 
-        if (!link)
+        if (!match)
             return m.reply("❌ Debes colocar un enlace de grupo válido.")
 
-        const groupCode = link[1]
-
-        let caption = text
-            .replace(link[0], "")
-            .trim()
+        const groupCode = match[1]
 
         const targetChat = await conn.groupAcceptInvite(groupCode)
             .catch(() => groupCode)
@@ -51,7 +47,7 @@ export default {
             .map(u => u.id)
             .filter(id => id !== conn.user.jid)
 
-        const quotedMsg = m.quoted.message || {}
+        const quotedMsg = m.quoted?.message || {}
 
         const quotedType = Object.keys(quotedMsg).find(key =>
             [
@@ -63,12 +59,30 @@ export default {
             ].includes(key)
         )
 
-        if (!quotedType)
-            return m.reply(
-                "❌ El mensaje citado no contiene multimedia compatible."
+        if (!quotedType) {
+
+            if (!caption)
+                return m.reply(
+                    `${m.e.warn} Debes escribir un texto después de |`
+                )
+
+            await conn.sendMessage(
+                targetChat,
+                {
+                    text: caption,
+                    contextInfo: {
+                        mentionedJid: users
+                    }
+                },
+                { quoted: null }
             )
 
+            await m.react("✅")
+            return
+        }
+
         try {
+
             const media = await m.quoted.download()
 
             const msg = {
@@ -77,21 +91,36 @@ export default {
                 }
             }
 
+            let quotedCaption = ""
+
+            if (quotedType === "imageMessage")
+                quotedCaption = quotedMsg.imageMessage?.caption || ""
+
+            else if (quotedType === "videoMessage")
+                quotedCaption = quotedMsg.videoMessage?.caption || ""
+
+            else if (quotedType === "documentMessage")
+                quotedCaption = quotedMsg.documentMessage?.caption || ""
+
+            const finalCaption =
+                caption ||
+                quotedCaption
+
             switch (quotedType) {
 
                 case "imageMessage":
                     msg.image = media
 
-                    if (caption)
-                        msg.caption = caption
+                    if (finalCaption)
+                        msg.caption = finalCaption
 
                     break
 
                 case "videoMessage":
                     msg.video = media
 
-                    if (caption)
-                        msg.caption = caption
+                    if (finalCaption)
+                        msg.caption = finalCaption
 
                     break
 
@@ -112,13 +141,12 @@ export default {
                     msg.document = media
                     msg.fileName =
                         m.quoted.fileName || "archivo"
-
                     msg.mimetype =
                         m.quoted.mimetype ||
                         "application/octet-stream"
 
-                    if (caption)
-                        msg.caption = caption
+                    if (finalCaption)
+                        msg.caption = finalCaption
 
                     break
             }
@@ -131,12 +159,12 @@ export default {
 
             if (
                 quotedType === "stickerMessage" &&
-                caption
+                finalCaption
             ) {
                 await conn.sendMessage(
                     targetChat,
                     {
-                        text: caption,
+                        text: finalCaption,
                         contextInfo: {
                             mentionedJid: users
                         }
@@ -148,6 +176,7 @@ export default {
             await m.react("✅")
 
         } catch (err) {
+
             console.error("❌ Error en siu:", err)
 
             return m.reply(
@@ -155,4 +184,4 @@ export default {
             )
         }
     }
-    }
+}
