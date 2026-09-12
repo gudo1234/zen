@@ -1,62 +1,84 @@
-import { spawn } from "child_process"
+import ffmpeg from "fluent-ffmpeg"
+import fs from "fs/promises"
+import os from "os"
+import path from "path"
+import crypto from "crypto"
 
-function convertirAVozWhatsApp(buffer) {
-    return new Promise((resolve, reject) => {
+function convertirNotaDeVoz(buffer, extension = "audio") {
+    return new Promise(async (resolve, reject) => {
 
-        const ffmpeg = spawn("ffmpeg", [
-            "-hide_banner",
-            "-loglevel", "error",
-            "-i", "pipe:0",
-            "-vn",
-            "-c:a", "libopus",
-            "-b:a", "64k",
-            "-ar", "48000",
-            "-ac", "1",
-            "-application", "voip",
-            "-f", "ogg",
-            "pipe:1"
-        ])
+        const id = crypto.randomBytes(8).toString("hex")
+        const dir = await fs.mkdtemp(
+            path.join(os.tmpdir(), `siu-${id}-`)
+        )
 
-        const chunks = []
-        const errors = []
+        const input = path.join(dir, `input.${extension}`)
+        const output = path.join(dir, "voice.ogg")
 
-        ffmpeg.stdout.on("data", chunk => {
-            chunks.push(chunk)
-        })
+        try {
 
-        ffmpeg.stderr.on("data", chunk => {
-            errors.push(chunk)
-        })
+            await fs.writeFile(input, buffer)
 
-        ffmpeg.on("error", err => {
+            ffmpeg(input)
+                .noVideo()
+                .audioCodec("libopus")
+                .audioBitrate("64k")
+                .audioChannels(1)
+                .audioFrequency(48000)
+                .outputOptions([
+                    "-application", "voip",
+                    "-compression_level", "10"
+                ])
+                .format("ogg")
+                .on("error", async err => {
+
+                    try {
+                        await fs.rm(dir, {
+                            recursive: true,
+                            force: true
+                        })
+                    } catch {}
+
+                    reject(err)
+                })
+                .on("end", async () => {
+
+                    try {
+
+                        const result =
+                            await fs.readFile(output)
+
+                        await fs.rm(dir, {
+                            recursive: true,
+                            force: true
+                        })
+
+                        if (!result?.length)
+                            return reject(
+                                new Error(
+                                    "FFmpeg no produjo ningún audio."
+                                )
+                            )
+
+                        resolve(result)
+
+                    } catch (err) {
+                        reject(err)
+                    }
+                })
+                .save(output)
+
+        } catch (err) {
+
+            try {
+                await fs.rm(dir, {
+                    recursive: true,
+                    force: true
+                })
+            } catch {}
+
             reject(err)
-        })
-
-        ffmpeg.on("close", code => {
-
-            if (code !== 0) {
-                const error = Buffer.concat(errors).toString()
-
-                return reject(
-                    new Error(
-                        error || `FFmpeg terminó con código ${code}`
-                    )
-                )
-            }
-
-            const output = Buffer.concat(chunks)
-
-            if (!output.length)
-                return reject(
-                    new Error("FFmpeg no generó ningún audio.")
-                )
-
-            resolve(output)
-        })
-
-        ffmpeg.stdin.on("error", () => {})
-
-        ffmpeg.stdin.end(buffer)
+        }
     })
 }
 
@@ -86,26 +108,33 @@ export default {
         )
 
         if (!match)
-            return m.reply("❌ Debes colocar un enlace de grupo válido.")
+            return m.reply(
+                "❌ Debes colocar un enlace de grupo válido."
+            )
 
         const groupCode = match[1]
 
         let targetChat = null
 
         try {
-            const inviteInfo = await conn.groupGetInviteInfo(groupCode)
+
+            const inviteInfo =
+                await conn.groupGetInviteInfo(groupCode)
 
             if (inviteInfo?.id)
                 targetChat = inviteInfo.id
 
         } catch (err) {
+
             console.log(
                 "⚠️ No se pudo obtener la información de la invitación."
             )
         }
 
         try {
-            const joined = await conn.groupAcceptInvite(groupCode)
+
+            const joined =
+                await conn.groupAcceptInvite(groupCode)
 
             if (
                 typeof joined === "string" &&
@@ -115,6 +144,7 @@ export default {
             }
 
         } catch (err) {
+
             console.log(
                 "⚠️ El bot posiblemente ya está en el grupo."
             )
@@ -125,8 +155,9 @@ export default {
                 "❌ No pude identificar el grupo. El enlace puede estar vencido, ser inválido o el bot no puede acceder al grupo."
             )
 
-        const metadata = await conn.groupMetadata(targetChat)
-            .catch(() => null)
+        const metadata =
+            await conn.groupMetadata(targetChat)
+                .catch(() => null)
 
         if (!metadata)
             return m.reply(
@@ -154,6 +185,7 @@ export default {
         )
 
         if (mediaType) {
+
             mediaSource = m
             mediaMsg = currentMsg
         }
@@ -173,6 +205,7 @@ export default {
             )
 
             if (mediaType) {
+
                 mediaSource = m.quoted
                 mediaMsg = quotedMsg
             }
@@ -193,16 +226,22 @@ export default {
                         mentionedJid: users
                     }
                 },
-                { quoted: null }
+                {
+                    quoted: null
+                }
             )
 
             await m.react("✅")
+
             return
         }
 
         try {
 
-            const media = await mediaSource.download()
+            await m.react("🕒")
+
+            const media =
+                await mediaSource.download()
 
             if (!media)
                 throw new Error(
@@ -236,7 +275,7 @@ export default {
 
             switch (mediaType) {
 
-                case "imageMessage":
+                case "imageMessage": {
 
                     msg.image = media
 
@@ -244,8 +283,9 @@ export default {
                         msg.caption = finalCaption
 
                     break
+                }
 
-                case "videoMessage":
+                case "videoMessage": {
 
                     msg.video = media
 
@@ -253,28 +293,146 @@ export default {
                         msg.caption = finalCaption
 
                     break
+                }
 
                 case "audioMessage": {
-
-                    await m.react("🕒")
-
-                    console.log(
-                        "🎙️ Convirtiendo audio a OGG/Opus para nota de voz..."
-                    )
-
-                    const voice = await convertirAVozWhatsApp(media)
-
-                    msg.audio = voice
-                    msg.ptt = true
-                    msg.mimetype = "audio/ogg; codecs=opus"
 
                     const audioInfo =
                         mediaMsg.audioMessage || {}
 
+                    let voice = media
+
+                    const originalMime =
+                        audioInfo.mimetype ||
+                        mediaSource.mimetype ||
+                        ""
+
+                    const yaEsOpus =
+                        originalMime.includes("ogg") &&
+                        originalMime.includes("opus")
+
+                    if (!yaEsOpus) {
+
+                        console.log(
+                            "🎙️ Convirtiendo audio a nota de voz..."
+                        )
+
+                        let extension = "audio"
+
+                        if (
+                            originalMime.includes("mpeg") ||
+                            originalMime.includes("mp3")
+                        ) {
+                            extension = "mp3"
+                        } else if (
+                            originalMime.includes("mp4") ||
+                            originalMime.includes("m4a")
+                        ) {
+                            extension = "m4a"
+                        } else if (
+                            originalMime.includes("wav")
+                        ) {
+                            extension = "wav"
+                        } else if (
+                            originalMime.includes("webm")
+                        ) {
+                            extension = "webm"
+                        }
+
+                        voice =
+                            await convertirNotaDeVoz(
+                                media,
+                                extension
+                            )
+                    }
+
+                    msg.audio = voice
+
+                    msg.ptt = true
+
+                    msg.mimetype =
+                        "audio/ogg; codecs=opus"
+
                     if (audioInfo.seconds)
-                        msg.seconds = audioInfo.seconds
+                        msg.seconds =
+                            audioInfo.seconds
+
+                    if (audioInfo.waveform)
+                        msg.waveform =
+                            audioInfo.waveform
 
                     break
                 }
 
-                case "
+                case "stickerMessage": {
+
+                    msg.sticker = media
+
+                    break
+                }
+
+                case "documentMessage": {
+
+                    msg.document = media
+
+                    msg.fileName =
+                        mediaMsg.documentMessage?.fileName ||
+                        mediaSource.fileName ||
+                        "archivo"
+
+                    msg.mimetype =
+                        mediaMsg.documentMessage?.mimetype ||
+                        mediaSource.mimetype ||
+                        "application/octet-stream"
+
+                    if (finalCaption)
+                        msg.caption = finalCaption
+
+                    break
+                }
+            }
+
+            await conn.sendMessage(
+                targetChat,
+                msg,
+                {
+                    quoted: null
+                }
+            )
+
+            if (
+                mediaType === "stickerMessage" &&
+                finalCaption
+            ) {
+
+                await conn.sendMessage(
+                    targetChat,
+                    {
+                        text: finalCaption,
+                        contextInfo: {
+                            mentionedJid: users
+                        }
+                    },
+                    {
+                        quoted: null
+                    }
+                )
+            }
+
+            await m.react("✅")
+
+        } catch (err) {
+
+            console.error(
+                "❌ Error en siu:",
+                err
+            )
+
+            await m.react("❌").catch(() => {})
+
+            return m.reply(
+                "❌ No pude convertir o enviar el multimedia."
+            )
+        }
+    }
+}
