@@ -1,3 +1,65 @@
+import { spawn } from "child_process"
+
+function convertirAVozWhatsApp(buffer) {
+    return new Promise((resolve, reject) => {
+
+        const ffmpeg = spawn("ffmpeg", [
+            "-hide_banner",
+            "-loglevel", "error",
+            "-i", "pipe:0",
+            "-vn",
+            "-c:a", "libopus",
+            "-b:a", "64k",
+            "-ar", "48000",
+            "-ac", "1",
+            "-application", "voip",
+            "-f", "ogg",
+            "pipe:1"
+        ])
+
+        const chunks = []
+        const errors = []
+
+        ffmpeg.stdout.on("data", chunk => {
+            chunks.push(chunk)
+        })
+
+        ffmpeg.stderr.on("data", chunk => {
+            errors.push(chunk)
+        })
+
+        ffmpeg.on("error", err => {
+            reject(err)
+        })
+
+        ffmpeg.on("close", code => {
+
+            if (code !== 0) {
+                const error = Buffer.concat(errors).toString()
+
+                return reject(
+                    new Error(
+                        error || `FFmpeg terminó con código ${code}`
+                    )
+                )
+            }
+
+            const output = Buffer.concat(chunks)
+
+            if (!output.length)
+                return reject(
+                    new Error("FFmpeg no generó ningún audio.")
+                )
+
+            resolve(output)
+        })
+
+        ffmpeg.stdin.on("error", () => {})
+
+        ffmpeg.stdin.end(buffer)
+    })
+}
+
 export default {
     name: ["siu"],
     help: ["siu <link del grupo> | <texto>"],
@@ -37,17 +99,25 @@ export default {
                 targetChat = inviteInfo.id
 
         } catch (err) {
-            console.log("⚠️ No se pudo obtener la información de la invitación.")
+            console.log(
+                "⚠️ No se pudo obtener la información de la invitación."
+            )
         }
 
         try {
             const joined = await conn.groupAcceptInvite(groupCode)
 
-            if (typeof joined === "string" && joined.includes("@g.us"))
+            if (
+                typeof joined === "string" &&
+                joined.includes("@g.us")
+            ) {
                 targetChat = joined
+            }
 
         } catch (err) {
-            console.log("⚠️ El bot posiblemente ya está en el grupo.")
+            console.log(
+                "⚠️ El bot posiblemente ya está en el grupo."
+            )
         }
 
         if (!targetChat)
@@ -135,7 +205,9 @@ export default {
             const media = await mediaSource.download()
 
             if (!media)
-                throw new Error("No se pudo descargar el multimedia.")
+                throw new Error(
+                    "No se pudo descargar el multimedia."
+                )
 
             const msg = {
                 contextInfo: {
@@ -184,87 +256,25 @@ export default {
 
                 case "audioMessage": {
 
-                    const audioInfo = mediaMsg.audioMessage || {}
+                    await m.react("🕒")
 
-                    msg.audio = media
+                    console.log(
+                        "🎙️ Convirtiendo audio a OGG/Opus para nota de voz..."
+                    )
 
-                    msg.mimetype =
-                        audioInfo.mimetype ||
-                        mediaSource.mimetype ||
-                        "audio/ogg; codecs=opus"
+                    const voice = await convertirAVozWhatsApp(media)
 
-                    msg.ptt =
-                        audioInfo.ptt === true
+                    msg.audio = voice
+                    msg.ptt = true
+                    msg.mimetype = "audio/ogg; codecs=opus"
 
-                    if (audioInfo.fileName)
-                        msg.fileName = audioInfo.fileName
+                    const audioInfo =
+                        mediaMsg.audioMessage || {}
 
                     if (audioInfo.seconds)
                         msg.seconds = audioInfo.seconds
 
-                    if (audioInfo.waveform)
-                        msg.waveform = audioInfo.waveform
-
                     break
                 }
 
-                case "stickerMessage":
-
-                    msg.sticker = media
-
-                    break
-
-                case "documentMessage":
-
-                    msg.document = media
-
-                    msg.fileName =
-                        mediaMsg.documentMessage?.fileName ||
-                        mediaSource.fileName ||
-                        "archivo"
-
-                    msg.mimetype =
-                        mediaMsg.documentMessage?.mimetype ||
-                        mediaSource.mimetype ||
-                        "application/octet-stream"
-
-                    if (finalCaption)
-                        msg.caption = finalCaption
-
-                    break
-            }
-
-            await conn.sendMessage(
-                targetChat,
-                msg,
-                { quoted: null }
-            )
-
-            if (
-                mediaType === "stickerMessage" &&
-                finalCaption
-            ) {
-                await conn.sendMessage(
-                    targetChat,
-                    {
-                        text: finalCaption,
-                        contextInfo: {
-                            mentionedJid: users
-                        }
-                    },
-                    { quoted: null }
-                )
-            }
-
-            await m.react("✅")
-
-        } catch (err) {
-
-            console.error("❌ Error en siu:", err)
-
-            return m.reply(
-                "❌ No pude descargar o enviar el multimedia."
-            )
-        }
-    }
-}
+                case "
