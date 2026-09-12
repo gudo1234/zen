@@ -6,6 +6,7 @@ export default {
     group: true,
     admin: true,
     owner: true,
+
     run: async ({ conn, m, text, args, prefijo, cmd }) => {
 
         if (!text?.trim())
@@ -30,7 +31,6 @@ export default {
         let targetChat = null
 
         try {
-
             const inviteInfo = await conn.groupGetInviteInfo(groupCode)
 
             if (inviteInfo?.id)
@@ -41,7 +41,6 @@ export default {
         }
 
         try {
-
             const joined = await conn.groupAcceptInvite(groupCode)
 
             if (typeof joined === "string" && joined.includes("@g.us"))
@@ -135,6 +134,9 @@ export default {
 
             const media = await mediaSource.download()
 
+            if (!media)
+                throw new Error("No se pudo descargar el multimedia.")
+
             const msg = {
                 contextInfo: {
                     mentionedJid: users
@@ -180,14 +182,31 @@ export default {
 
                     break
 
-                case "audioMessage":
+                case "audioMessage": {
+
+                    const audioInfo = mediaMsg.audioMessage || {}
 
                     msg.audio = media
-                    msg.ptt = true
-                    msg.fileName = "siu.mp3"
-                    msg.mimetype = "audio/mp4"
+
+                    msg.mimetype =
+                        audioInfo.mimetype ||
+                        mediaSource.mimetype ||
+                        "audio/ogg; codecs=opus"
+
+                    msg.ptt =
+                        audioInfo.ptt === true
+
+                    if (audioInfo.fileName)
+                        msg.fileName = audioInfo.fileName
+
+                    if (audioInfo.seconds)
+                        msg.seconds = audioInfo.seconds
+
+                    if (audioInfo.waveform)
+                        msg.waveform = audioInfo.waveform
 
                     break
+                }
 
                 case "stickerMessage":
 
