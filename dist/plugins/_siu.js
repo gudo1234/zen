@@ -259,11 +259,12 @@ function encontrarMedia(message = {}) {
         "futureproofMessage"
     ]
 
-    function buscar(obj) {
+    function buscar(obj, profundidad = 0) {
 
         if (
             !obj ||
-            typeof obj !== "object"
+            typeof obj !== "object" ||
+            profundidad > 15
         ) {
             return null
         }
@@ -281,13 +282,15 @@ function encontrarMedia(message = {}) {
 
         for (const wrapper of wrappers) {
 
-            if (
+            const contenido =
                 obj[wrapper]?.message
-            ) {
+
+            if (contenido) {
 
                 const encontrado =
                     buscar(
-                        obj[wrapper].message
+                        contenido,
+                        profundidad + 1
                     )
 
                 if (encontrado)
@@ -299,6 +302,129 @@ function encontrarMedia(message = {}) {
     }
 
     return buscar(message)
+}
+
+async function descargarMedia(conn, source) {
+
+    if (!source)
+        throw new Error(
+            "No se encontró el mensaje multimedia."
+        )
+
+    let buffer = null
+
+    if (
+        typeof source.download === "function"
+    ) {
+
+        try {
+
+            buffer =
+                await source.download()
+
+        } catch (error) {
+
+            console.log(
+                "⚠️ download() falló:",
+                error?.message || error
+            )
+        }
+    }
+
+    if (
+        Buffer.isBuffer(buffer) &&
+        buffer.length
+    ) {
+        return buffer
+    }
+
+    if (
+        typeof conn.downloadMediaMessage === "function"
+    ) {
+
+        try {
+
+            buffer =
+                await conn.downloadMediaMessage(
+                    source
+                )
+
+        } catch (error) {
+
+            console.log(
+                "⚠️ downloadMediaMessage() falló:",
+                error?.message || error
+            )
+        }
+    }
+
+    if (
+        Buffer.isBuffer(buffer) &&
+        buffer.length
+    ) {
+        return buffer
+    }
+
+    if (
+        typeof conn.downloadAndSaveMediaMessage === "function"
+    ) {
+
+        try {
+
+            const tempDir =
+                await fs.mkdtemp(
+                    path.join(
+                        os.tmpdir(),
+                        "siu-media-"
+                    )
+                )
+
+            const tempFile =
+                path.join(
+                    tempDir,
+                    "media"
+                )
+
+            const saved =
+                await conn.downloadAndSaveMediaMessage(
+                    source,
+                    tempFile
+                )
+
+            const file =
+                saved ||
+                tempFile
+
+            const data =
+                await fs.readFile(file)
+
+            await fs.rm(
+                tempDir,
+                {
+                    recursive: true,
+                    force: true
+                }
+            ).catch(() => {})
+
+            if (
+                Buffer.isBuffer(data) &&
+                data.length
+            ) {
+                return data
+            }
+
+        } catch (error) {
+
+            console.log(
+                "⚠️ downloadAndSaveMediaMessage() falló:",
+                error?.message || error
+            )
+        }
+    }
+
+    throw new Error(
+        "No se pudo descargar el multimedia."
+    )
 }
 
 export default {
@@ -369,27 +495,30 @@ export default {
             )
         }
 
-        try {
+        if (!targetChat) {
 
-            const joined =
-                await conn.groupAcceptInvite(
-                    groupCode
+            try {
+
+                const joined =
+                    await conn.groupAcceptInvite(
+                        groupCode
+                    )
+
+                if (
+                    typeof joined === "string" &&
+                    joined.includes("@g.us")
+                ) {
+
+                    targetChat =
+                        joined
+                }
+
+            } catch {
+
+                console.log(
+                    "⚠️ El bot posiblemente ya está en el grupo."
                 )
-
-            if (
-                typeof joined === "string" &&
-                joined.includes("@g.us")
-            ) {
-
-                targetChat =
-                    joined
             }
-
-        } catch {
-
-            console.log(
-                "⚠️ El bot posiblemente ya está en el grupo."
-            )
         }
 
         if (!targetChat)
@@ -443,12 +572,17 @@ export default {
 
         if (
             !mediaType &&
-            m.quoted?.message
+            m.quoted
         ) {
+
+            const quotedMessage =
+                m.quoted.message ||
+                m.quoted.msg ||
+                {}
 
             const quoted =
                 encontrarMedia(
-                    m.quoted.message
+                    quotedMessage
                 )
 
             if (quoted) {
@@ -494,8 +628,16 @@ export default {
 
             await m.react("🕒")
 
+            console.log(
+                "📦 Multimedia detectado:",
+                mediaType
+            )
+
             const media =
-                await mediaSource.download()
+                await descargarMedia(
+                    conn,
+                    mediaSource
+                )
 
             if (
                 !media ||
@@ -506,6 +648,12 @@ export default {
                     "No se pudo descargar el multimedia."
                 )
             }
+
+            console.log(
+                "📥 Multimedia descargado:",
+                media.length,
+                "bytes"
+            )
 
             const msg = {
                 contextInfo: {
@@ -600,13 +748,6 @@ export default {
                         "🎙️ Normalizando audio a nota de voz..."
                     )
 
-                    /*
-                     * SIEMPRE convertimos.
-                     *
-                     * No importa si el original
-                     * ya dice ser Opus.
-                     */
-
                     const voice =
                         await convertirNotaDeVoz(
                             media,
@@ -638,15 +779,14 @@ export default {
                     msg.mimetype =
                         "audio/ogg; codecs=opus"
 
-                    /*
-                     * No reutilizamos waveform
-                     * ni seconds del audio original.
-                     */
-
                     break
                 }
 
                 case "stickerMessage": {
+
+                    console.log(
+                        "🧩 Sticker detectado."
+                    )
 
                     msg.sticker =
                         media
@@ -686,6 +826,13 @@ export default {
                         "Tipo de multimedia no soportado."
                     )
             }
+
+            console.log(
+                "📤 Enviando:",
+                mediaType,
+                "a",
+                targetChat
+            )
 
             await conn.sendMessage(
                 targetChat,
