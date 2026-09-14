@@ -6,12 +6,11 @@ import { tmpdir } from "os";
 import crypto from "crypto";
 import webp from "node-webpmux";
 
-const packnameDefault = "𝗦𝗧𝗜𝗖𝗞𝗘𝗥𝗦❤️‍🔥 - Mitzuki\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
-const authorDefault = "Owner: @elrebelde21\n• Dueña: @itschinita_official";
+const packnameDefault = `${m.pushName}\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n`;
+const authorDefault = "";
 
 async function addExif(webpSticker, packname, author, categories = [""]) {
     const img = new webp.Image();
-
     const stickerPackId = crypto.randomBytes(32).toString("hex");
 
     const json = {
@@ -45,17 +44,11 @@ export default {
     desc: "Convierte imagen o video en sticker",
 
     run: async ({ conn, m, prefijo, cmd, text, args }) => {
-
         let tmpIn = null;
         let tmpOut = null;
         let tmpFinal = null;
 
         try {
-
-            // ═══════════════════════════════════════
-            // PACK / AUTOR
-            // ═══════════════════════════════════════
-
             const userResult = await db.query(
                 "SELECT sticker_packname, sticker_author FROM usuarios WHERE id = $1",
                 [m.sender]
@@ -63,8 +56,7 @@ export default {
 
             const user = userResult.rows[0] || {};
 
-            let f;
-            let g;
+            let f, g;
 
             if (user.sticker_packname && user.sticker_author) {
                 f = user.sticker_packname;
@@ -77,10 +69,6 @@ export default {
                 g = authorDefault;
             }
 
-            // ═══════════════════════════════════════
-            // TEXTO DEL COMANDO
-            // ═══════════════════════════════════════
-
             const commandText = String(
                 text ||
                 args?.join(" ") ||
@@ -88,10 +76,6 @@ export default {
                 m.body ||
                 ""
             ).trim();
-
-            // ═══════════════════════════════════════
-            // EFECTOS
-            // ═══════════════════════════════════════
 
             const optionI = /(?:^|\s)-i(?:\s|$)/i.test(commandText);
             const optionX = /(?:^|\s)-x(?:\s|$)/i.test(commandText);
@@ -110,12 +94,7 @@ export default {
                 optionD ||
                 optionL;
 
-            // ═══════════════════════════════════════
-            // DETECTAR MEDIA
-            // ═══════════════════════════════════════
-
             const q = m.quoted ? m.quoted : m;
-
             let qmsg = q?.msg || q;
 
             let mime =
@@ -128,12 +107,7 @@ export default {
 
             mime = String(mime).toLowerCase();
 
-            // ═══════════════════════════════════════
-            // MEDIA DIRECTA EN EL MISMO MENSAJE
-            // ═══════════════════════════════════════
-
             if (!mime && m.message) {
-
                 const message =
                     m.message?.ephemeralMessage?.message ||
                     m.message?.viewOnceMessage?.message ||
@@ -156,117 +130,55 @@ export default {
                 }
             }
 
-            // ═══════════════════════════════════════
-            // SIN MEDIA → TUTORIAL
-            // ═══════════════════════════════════════
-
             if (!/webp|image|video/.test(mime)) {
-
                 return m.reply(
 `╭  ✦ *Sticker Maker* ✦  ╮
 
-> Crea stickers a partir de imágenes, videos o URLs.
+➠ ${prefijo}${cmd} <media>
+Crea un sticker normal.
 
-ᯓ  *⌞efectos⌝*
+➠ ${prefijo}${cmd} -i
+Imagen ampliada.
 
-⭔ *-i* ↷
-Ampliado.
+➠ ${prefijo}${cmd} -x
+Acoplado 512×512.
 
-⭔ *-x* ↷
-Acoplado (512×512).
-
-⭔ *-c* ↷
+➠ ${prefijo}${cmd} -c
 Circular.
 
-⭔ *-v* ↷
+➠ ${prefijo}${cmd} -v
 Vertical.
 
-⭔ *-h* ↷
+➠ ${prefijo}${cmd} -h
 Horizontal.
 
-⭔ *-d* ↷
-Acoplado hacia la derecha.
+➠ ${prefijo}${cmd} -d
+Hacia la derecha.
 
-⭔ *-l* ↷
-Acoplado hacia la izquierda.
+➠ ${prefijo}${cmd} -l
+Hacia la izquierda.
 
-ᯓ  *⌞ejemplos⌝*
+✐ Los efectos funcionan *SOLO con imágenes*.
+✐ Los videos se convierten normalmente.
 
-⭔ ${prefijo}${cmd} *<reply media>* ↷
-Crea un sticker desde una imagen o video.
-
-⭔ ${prefijo}${cmd} *<reply imagen> -i* ↷
-Crea un sticker ampliado.
-
-⭔ ${prefijo}${cmd} *<reply imagen> -x* ↷
-Crea un sticker acoplado a 512×512.
-
-⭔ ${prefijo}${cmd} *<reply imagen> -c* ↷
-Crea un sticker circular.
-
-⭔ ${prefijo}${cmd} *<reply imagen> -v* ↷
-Crea un sticker vertical.
-
-⭔ ${prefijo}${cmd} *<reply imagen> -h* ↷
-Crea un sticker horizontal.
-
-⭔ ${prefijo}${cmd} *<reply imagen> -d* ↷
-Coloca la imagen hacia la derecha.
-
-⭔ ${prefijo}${cmd} *<reply imagen> -l* ↷
-Coloca la imagen hacia la izquierda.
-
-ᯓ  *⌞importante⌝*
-
-> El sticker normal no aplica ninguna forma.
-> Los efectos funcionan *SOLO con imágenes*.
-
-> Los videos se convierten normalmente usando:
-> ${prefijo}${cmd} *<reply video>*
-
-╰━━━━━━━━━━━━━━━━━━━━╯`
+╰━━━━━━━━━━━━━━━━━╯`
                 );
             }
-
-            // ═══════════════════════════════════════
-            // EFECTOS SOLO PARA IMÁGENES
-            // ═══════════════════════════════════════
 
             if (hasEffect && mime.includes("video")) {
-
                 return m.reply(
                     m.e.warn +
-                    ` *Los efectos solo funcionan con imágenes.* 🖼️\n\n` +
-                    `Para convertir este video normalmente responde con:\n\n` +
-                    `⭔ ${prefijo}${cmd}\n\n` +
-                    `No puedes utilizar -i, -x, -c, -v, -h, -d ni -l con videos.`
+                    " *Los efectos solo funcionan con imágenes.* 🖼️\n\n" +
+                    `➠✐ Usa ${prefijo}${cmd} sin ninguna opción para convertir el video.`
                 );
             }
 
-            // ═══════════════════════════════════════
-            // DURACIÓN DEL VIDEO
-            // ═══════════════════════════════════════
-
-            if (mime.includes("video")) {
-
-                const seconds = Number(
-                    qmsg?.seconds ||
-                    qmsg?.duration ||
-                    q?.seconds ||
-                    0
+            if (mime.includes("video") && (qmsg?.seconds || q?.seconds) > 18) {
+                return m.reply(
+                    m.e.warn +
+                    " ¿Dónde has visto un sticker de 15 segundos? Hazlo más corto, máximo 12s."
                 );
-
-                if (seconds > 18) {
-                    return m.reply(
-                        m.e.warn +
-                        " ¿Dónde has visto un sticker de 15 segundos? Hazlo más corto, máximo 12s."
-                    );
-                }
             }
-
-            // ═══════════════════════════════════════
-            // DESCARGAR
-            // ═══════════════════════════════════════
 
             let img = null;
 
@@ -286,26 +198,13 @@ Coloca la imagen hacia la izquierda.
                 );
             }
 
-            // ═══════════════════════════════════════
-            // ARCHIVO FINAL
-            // ═══════════════════════════════════════
-
             tmpFinal = path.join(
                 tmpdir(),
                 `${Date.now()}_${crypto.randomBytes(4).toString("hex")}_final.webp`
             );
 
-            // ═══════════════════════════════════════
-            // WEBP SIN EFECTOS
-            // ═══════════════════════════════════════
-
             if (mime.includes("webp") && !hasEffect) {
-
-                const finalSticker = await addExif(
-                    img,
-                    f,
-                    g
-                );
+                const finalSticker = await addExif(img, f, g);
 
                 await fs.promises.writeFile(
                     tmpFinal,
@@ -328,13 +227,7 @@ Coloca la imagen hacia la izquierda.
                 return;
             }
 
-            // ═══════════════════════════════════════
-            // ARCHIVO DE ENTRADA
-            // ═══════════════════════════════════════
-
-            const ext = mime.includes("video")
-                ? "mp4"
-                : "jpg";
+            const ext = mime.includes("video") ? "mp4" : "jpg";
 
             tmpIn = path.join(
                 tmpdir(),
@@ -346,24 +239,11 @@ Coloca la imagen hacia la izquierda.
                 `${Date.now()}_${crypto.randomBytes(4).toString("hex")}.webp`
             );
 
-            await fs.promises.writeFile(
-                tmpIn,
-                img
-            );
-
-            // ═══════════════════════════════════════
-            // FILTRO
-            // ═══════════════════════════════════════
+            await fs.promises.writeFile(tmpIn, img);
 
             let filter;
 
-            // ───────────────────────────────────────
-            // NORMAL
-            // EXACTAMENTE COMO TU CÓDIGO ORIGINAL
-            // ───────────────────────────────────────
-
             if (!hasEffect) {
-
                 filter =
                     "scale='min(320,iw)':min'(320,ih)':force_original_aspect_ratio=decrease," +
                     "fps=15," +
@@ -371,36 +251,15 @@ Coloca la imagen hacia la izquierda.
                     "split [a][b];" +
                     "[a] palettegen=reserve_transparent=on:transparency_color=ffffff [p];" +
                     "[b][p] paletteuse";
-            }
-
-            // ───────────────────────────────────────
-            // AMPLIADO
-            // ───────────────────────────────────────
-
-            else if (optionI) {
-
+            } else if (optionI) {
                 filter =
                     "scale=512:512:force_original_aspect_ratio=increase," +
                     "crop=512:512";
-            }
-
-            // ───────────────────────────────────────
-            // 512×512
-            // ───────────────────────────────────────
-
-            else if (optionX) {
-
+            } else if (optionX) {
                 filter =
                     "scale=512:512:force_original_aspect_ratio=decrease," +
                     "pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0";
-            }
-
-            // ───────────────────────────────────────
-            // CIRCULAR
-            // ───────────────────────────────────────
-
-            else if (optionC) {
-
+            } else if (optionC) {
                 filter =
                     "scale=512:512:force_original_aspect_ratio=increase," +
                     "crop=512:512," +
@@ -411,64 +270,30 @@ Coloca la imagen hacia la izquierda.
                     "b='b(X,Y)':" +
                     "a='if(lte((X-256)^2+(Y-256)^2,256^2),255,0)'," +
                     "format=yuva420p";
-            }
-
-            // ───────────────────────────────────────
-            // VERTICAL
-            // ───────────────────────────────────────
-
-            else if (optionV) {
-
+            } else if (optionV) {
                 filter =
                     "scale=512:640:force_original_aspect_ratio=decrease," +
                     "pad=512:640:(ow-iw)/2:(oh-ih)/2:color=white@0.0";
-            }
-
-            // ───────────────────────────────────────
-            // HORIZONTAL
-            // ───────────────────────────────────────
-
-            else if (optionH) {
-
+            } else if (optionH) {
                 filter =
                     "scale=640:512:force_original_aspect_ratio=decrease," +
                     "pad=640:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0";
-            }
-
-            // ───────────────────────────────────────
-            // DERECHA
-            // ───────────────────────────────────────
-
-            else if (optionD) {
-
+            } else if (optionD) {
                 filter =
                     "scale=450:450:force_original_aspect_ratio=decrease," +
                     "pad=512:512:62:(oh-ih)/2:color=white@0.0";
-            }
-
-            // ───────────────────────────────────────
-            // IZQUIERDA
-            // ───────────────────────────────────────
-
-            else if (optionL) {
-
+            } else if (optionL) {
                 filter =
                     "scale=450:450:force_original_aspect_ratio=decrease," +
                     "pad=512:512:0:(oh-ih)/2:color=white@0.0";
             }
-
-            // ═══════════════════════════════════════
-            // CONVERSIÓN
-            // ═══════════════════════════════════════
 
             const outputOptions = [
                 "-vcodec",
                 "libwebp"
             ];
 
-            // Video animado
             if (mime.includes("video")) {
-
                 outputOptions.push(
                     "-loop",
                     "0",
@@ -486,7 +311,6 @@ Coloca la imagen hacia la izquierda.
             );
 
             if (mime.includes("video")) {
-
                 outputOptions.push(
                     "-lossless",
                     "0",
@@ -498,7 +322,6 @@ Coloca la imagen hacia la izquierda.
             }
 
             await new Promise((resolve, reject) => {
-
                 ffmpeg(tmpIn)
                     .inputOptions(["-y"])
                     .outputOptions(outputOptions)
@@ -507,10 +330,6 @@ Coloca la imagen hacia la izquierda.
                     .on("end", resolve)
                     .on("error", reject);
             });
-
-            // ═══════════════════════════════════════
-            // EXIF
-            // ═══════════════════════════════════════
 
             const finalSticker = await addExif(
                 await fs.promises.readFile(tmpOut),
@@ -522,10 +341,6 @@ Coloca la imagen hacia la izquierda.
                 tmpFinal,
                 finalSticker
             );
-
-            // ═══════════════════════════════════════
-            // ENVIAR
-            // ═══════════════════════════════════════
 
             await conn.sendFile(
                 m.chat,
@@ -541,7 +356,6 @@ Coloca la imagen hacia la izquierda.
             );
 
         } catch (err) {
-
             console.error("❌ Error en /s:", err);
 
             return m.reply(
@@ -550,15 +364,12 @@ Coloca la imagen hacia la izquierda.
             );
 
         } finally {
-
             for (const file of [
                 tmpIn,
                 tmpOut,
                 tmpFinal
             ]) {
-
                 if (file && fs.existsSync(file)) {
-
                     try {
                         fs.unlinkSync(file);
                     } catch {}
