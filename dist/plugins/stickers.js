@@ -6,10 +6,10 @@ import { tmpdir } from "os";
 import crypto from "crypto";
 import webp from "node-webpmux";
 
-const packnameDefault = "xd\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
+const packnameDefault = "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
 const authorDefault = "✓";
 
-async function addExif(webpSticker, packname, author, categories = [""]) {
+async function addExif(webpSticker, packname, m.pushName, categories = [""]) {
     const img = new webp.Image();
     const stickerPackId = crypto.randomBytes(32).toString("hex");
 
@@ -152,35 +152,33 @@ export default {
             const isVideo = mime.includes("video");
 
             if (!isImage && !isVideo) {
-                return m.reply(
-                    m.e.warn +
-                    `╭  ✦ *Sticker Maker* ✦  ╮
+                return m.reply(null, m.e.warn + `╭  ✦ *Sticker Maker* ✦  ╮
 
-➠✐ ${prefijo}${cmd} <media>
+➠ ${prefijo}${cmd} <media>
 Crea un sticker de una imagen o video.
 
-➠✐ ${prefijo}${cmd} -i
+➠ ${prefijo}${cmd} -i
 Amplía la imagen.
 
-➠✐ ${prefijo}${cmd} -x
+➠ ${prefijo}${cmd} -x
 Acopla la imagen a 512×512.
 
-➠✐ ${prefijo}${cmd} -c
+➠ ${prefijo}${cmd} -c
 Convierte la imagen en circular.
 
-➠✐ ${prefijo}${cmd} -v
+➠ ${prefijo}${cmd} -v
 Voltea verticalmente.
 
-➠✐ ${prefijo}${cmd} -h
+➠ ${prefijo}${cmd} -h
 Voltea horizontalmente.
 
-➠✐ ${prefijo}${cmd} -d
+➠ ${prefijo}${cmd} -d
 Gira 90° a la derecha.
 
-➠✐ ${prefijo}${cmd} -l
+➠ ${prefijo}${cmd} -l
 Gira 90° a la izquierda.
 
-➠✐ Los efectos son *SOLO PARA IMÁGENES*.
+✐ Los efectos son *SOLO PARA IMÁGENES*.
 
 ╰━━━━━━━━━━━━━━━━`
                 );
