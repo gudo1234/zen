@@ -186,7 +186,7 @@ Gira 90° a la izquierda.
 
             if (hasEffect && isVideo) {
                 return m.reply(null, "➠ *Los efectos solo funcionan con imágenes.* 🖼️\n\n" +
-                    `➠✐ Usa ${prefijo}${cmd} sin opciones para convertir el video.`
+                    `✐ Usa ${prefijo}${cmd} sin opciones para convertir el video.`
                 );
             }
 
