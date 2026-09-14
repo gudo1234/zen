@@ -6,7 +6,7 @@ import { tmpdir } from "os";
 import crypto from "crypto";
 import webp from "node-webpmux";
 
-const packnameDefault = "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
+const packnameDefault = "xd\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
 const authorDefault = "✓";
 
 async function addExif(webpSticker, packname, m.pushName, categories = [""]) {
