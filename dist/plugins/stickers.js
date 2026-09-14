@@ -152,7 +152,7 @@ export default {
             const isVideo = mime.includes("video");
 
             if (!isImage && !isVideo) {
-                return m.reply(null, m.e.warn + `╭  ✦ *Sticker Maker* ✦  ╮
+                return m.reply(null, `╭  ✦ *Sticker Maker* ✦  ╮
 
 ➠ ${prefijo}${cmd} <media>
 Crea un sticker de una imagen o video.
@@ -185,9 +185,7 @@ Gira 90° a la izquierda.
             }
 
             if (hasEffect && isVideo) {
-                return m.reply(
-                    m.e.warn +
-                    " *Los efectos solo funcionan con imágenes.* 🖼️\n\n" +
+                return m.reply(null, "➠ *Los efectos solo funcionan con imágenes.* 🖼️\n\n" +
                     `➠✐ Usa ${prefijo}${cmd} sin opciones para convertir el video.`
                 );
             }
