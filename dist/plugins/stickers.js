@@ -9,28 +9,6 @@ import webp from "node-webpmux";
 const packnameDefault = "𝗦𝗧𝗜𝗖𝗞𝗘𝗥𝗦❤️‍🔥 - Mitzuki\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
 const authorDefault = "Owner: @elrebelde21\n• Dueña: @itschinita_official";
 
-const shapeFlags = {
-    "-c": "circle",
-    "-t": "triangle",
-    "-d": "diamond",
-    "-g": "hexagon",
-    "-p": "pentagon",
-    "-a": "heart",
-    "-b": "blob",
-    "-l": "leaf",
-    "-n": "moon",
-    "-s": "star",
-    "-z": "zap",
-    "-r": "curve",
-    "-e": "edges",
-    "-m": "mirror",
-    "-f": "arrow",
-    "-x": "attach",
-    "-i": "expand",
-    "-h": "flip-horizontal",
-    "-v": "flip-vertical"
-};
-
 async function addExif(webpSticker, packname, author, categories = [""]) {
     const img = new webp.Image();
 
@@ -44,29 +22,15 @@ async function addExif(webpSticker, packname, author, categories = [""]) {
     };
 
     const exifAttr = Buffer.from([
-        0x49, 0x49, 0x2A, 0x00,
-        0x08, 0x00, 0x00, 0x00,
-        0x01, 0x00, 0x41, 0x57,
-        0x07, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x16, 0x00,
-        0x00, 0x00
+        0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x16, 0x00, 0x00, 0x00
     ]);
 
-    const jsonBuffer = Buffer.from(
-        JSON.stringify(json),
-        "utf8"
-    );
+    const jsonBuffer = Buffer.from(JSON.stringify(json), "utf8");
+    const exif = Buffer.concat([exifAttr, jsonBuffer]);
 
-    const exif = Buffer.concat([
-        exifAttr,
-        jsonBuffer
-    ]);
-
-    exif.writeUIntLE(
-        jsonBuffer.length,
-        14,
-        4
-    );
+    exif.writeUIntLE(jsonBuffer.length, 14, 4);
 
     await img.load(webpSticker);
     img.exif = exif;
@@ -75,24 +39,20 @@ async function addExif(webpSticker, packname, author, categories = [""]) {
 }
 
 export default {
-    name: ["s", "sticker", "stiker"],
+    name: ["s", "sticker"],
     help: ["s", "sticker"],
     tags: ["sticker"],
-    desc: "Convierte imagen o video en sticker con formas personalizadas",
+    desc: "Convierte imágenes o videos en stickers",
 
-    run: async ({ conn, m, prefijo, cmd }) => {
-
+    run: async ({ conn, m, prefijo, cmd, text, args }) => {
         let tmpIn = null;
         let tmpOut = null;
         let tmpFinal = null;
-        let tmpFrame = null;
-        let tmpMask = null;
 
         try {
-
-            // ─────────────────────────────
-            // PACKNAME / AUTHOR
-            // ─────────────────────────────
+            // ─────────────────────────────────────
+            // PACK / AUTOR
+            // ─────────────────────────────────────
 
             const userResult = await db.query(
                 "SELECT sticker_packname, sticker_author FROM usuarios WHERE id = $1",
@@ -101,147 +61,170 @@ export default {
 
             const user = userResult.rows[0] || {};
 
-            let f, g;
+            let f;
+            let g;
 
             if (user.sticker_packname && user.sticker_author) {
                 f = user.sticker_packname;
                 g = user.sticker_author;
-            }
-            else if (user.sticker_packname && !user.sticker_author) {
+            } else if (user.sticker_packname && !user.sticker_author) {
                 f = user.sticker_packname;
                 g = authorDefault;
-            }
-            else {
+            } else {
                 f = packnameDefault;
                 g = authorDefault;
             }
 
-            // ─────────────────────────────
-            // MENSAJE CITADO
-            // ─────────────────────────────
+            // ─────────────────────────────────────
+            // OPCIONES
+            // ─────────────────────────────────────
 
-            const q = m.quoted ? m.quoted : m;
+            const inputText = String(text || args?.join(" ") || "").trim();
 
-            const mime =
-                (q.msg || q).mimetype ||
-                q.mediaType ||
+            const optionI = /(?:^|\s)-i(?:\s|$)/i.test(inputText);
+            const optionX = /(?:^|\s)-x(?:\s|$)/i.test(inputText);
+            const optionC = /(?:^|\s)-c(?:\s|$)/i.test(inputText);
+
+            // ─────────────────────────────────────
+            // DETECTAR MEDIA
+            // ─────────────────────────────────────
+
+            let q = null;
+
+            // 1. Si responde a un mensaje multimedia
+            if (m.quoted) {
+                q = m.quoted;
+            }
+
+            // 2. Si el propio mensaje trae la multimedia
+            if (!q) {
+                q = m;
+            }
+
+            const qmsg = q?.msg || q;
+
+            let mime =
+                qmsg?.mimetype ||
+                qmsg?.mediaType ||
+                q?.mimetype ||
                 "";
 
-            // ─────────────────────────────
-            // DETECTAR FORMA
-            // ─────────────────────────────
+            // Normalizar
+            mime = String(mime).toLowerCase();
 
-            const args = m.text
-                ? m.text.trim().split(/\s+/)
-                : [];
+            // ─────────────────────────────────────
+            // SI EL COMANDO VIENE CON MEDIA
+            // ─────────────────────────────────────
 
-            const selectedFlag = args.find(
-                arg => Object.prototype.hasOwnProperty.call(
-                    shapeFlags,
-                    arg.toLowerCase()
-                )
-            );
+            if (!mime) {
+                const directMsg = m.message || {};
 
-            const selectedShape =
-                selectedFlag
-                    ? shapeFlags[selectedFlag.toLowerCase()]
-                    : null;
+                const imageMessage =
+                    directMsg.imageMessage ||
+                    directMsg.ephemeralMessage?.message?.imageMessage ||
+                    directMsg.viewOnceMessage?.message?.imageMessage;
 
-            // ─────────────────────────────
-            // SIN MEDIA
-            // ─────────────────────────────
+                const videoMessage =
+                    directMsg.videoMessage ||
+                    directMsg.ephemeralMessage?.message?.videoMessage ||
+                    directMsg.viewOnceMessage?.message?.videoMessage;
 
-            if (!/webp|image|video|gif/i.test(mime)) {
+                if (imageMessage) {
+                    q = m;
+                    mime = imageMessage.mimetype || "image/jpeg";
+                } else if (videoMessage) {
+                    q = m;
+                    mime = videoMessage.mimetype || "video/mp4";
+                }
+            }
 
+            // ─────────────────────────────────────
+            // VALIDAR MEDIA
+            // ─────────────────────────────────────
+
+            if (!/webp|image|video/.test(mime)) {
                 return m.reply(
                     null,
                     m.e.warn +
-                    ` *¿Y la imagen o video? 🤔*
-
-Responde a una imagen, video o GIF para crear un sticker.
-
-┌🎨 *Formas disponibles:*
-│
-│ *Básicas*
-│ ├─ -c → Circular
-│ ├─ -t → Triangular
-│ ├─ -d → Diamante
-│ ├─ -g → Hexágono
-│ └─ -p → Pentágono
-│
-│ *Decorativas*
-│ ├─ -a → Corazón
-│ ├─ -b → Burbuja
-│ ├─ -l → Hoja
-│ ├─ -n → Luna
-│ ├─ -s → Estrella
-│ └─ -z → Rayo
-│
-│ *Especiales*
-│ ├─ -r → Curvado
-│ ├─ -e → Esquinas redondeadas
-│ ├─ -m → Espejo
-│ ├─ -f → Flecha
-│ ├─ -x → Acoplado
-│ ├─ -i → Ampliado
-│ ├─ -h → Horizontal
-│ └─ -v → Vertical
-└──────────────
-
-◈ *Ejemplo:*
-Responde a una imagen con:
-${prefijo}${cmd} -a`
+                    " *Y la imagen o video? 🤔*\n\n" +
+                    `Responde a una imagen o video, o envíalos junto con ${prefijo}${cmd}.`
                 );
             }
 
-            // ─────────────────────────────
-            // LÍMITE DE VIDEO
-            // ─────────────────────────────
+            // ─────────────────────────────────────
+            // OPCIONES SOLO PARA IMÁGENES
+            // ─────────────────────────────────────
 
-            if (
-                /video|gif/i.test(mime) &&
-                Number((q.msg || q).seconds || 0) > 18
-            ) {
-
+            if (optionC && !mime.includes("image")) {
                 return m.reply(
+                    null,
                     m.e.warn +
-                    " ¿Dónde has visto un sticker de 15 segundos? Hazlo más corto, máximo 18s."
+                    " *El efecto circular solo funciona con imágenes.* 🖼️"
                 );
             }
 
-            // ─────────────────────────────
-            // DESCARGAR
-            // ─────────────────────────────
+            // ─────────────────────────────────────
+            // DURACIÓN DEL VIDEO
+            // ─────────────────────────────────────
 
-            const img = await q.download?.();
+            if (mime.includes("video")) {
+                const seconds =
+                    Number(
+                        qmsg?.seconds ||
+                        qmsg?.duration ||
+                        q?.seconds ||
+                        0
+                    );
+
+                if (seconds > 18) {
+                    return m.reply(
+                        m.e.warn +
+                        " ¿Dónde has visto un sticker de 15 segundos? Hazlo más corto, máximo 18s."
+                    );
+                }
+            }
+
+            // ─────────────────────────────────────
+            // DESCARGAR MEDIA
+            // ─────────────────────────────────────
+
+            let img = null;
+
+            if (typeof q.download === "function") {
+                img = await q.download();
+            }
+
+            // Fallback para mensajes donde download() no funciona
+            if (!img && typeof m.download === "function") {
+                img = await m.download();
+            }
 
             if (!img) {
-
                 return m.reply(
                     null,
                     m.e.warn +
-                    " *Y la imagen? 🤔* Responde a una imagen, video o sticker para hacer el sticker."
+                    " *No pude obtener la imagen o video.* 🤔\n\n" +
+                    `Responde al medio o envíalo directamente junto con ${prefijo}${cmd}.`
                 );
             }
 
-            // ─────────────────────────────
-            // ARCHIVO FINAL
-            // ─────────────────────────────
+            // ─────────────────────────────────────
+            // NOMBRES TEMPORALES
+            // ─────────────────────────────────────
+
+            const randomName = () =>
+                `${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
             tmpFinal = path.join(
                 tmpdir(),
-                `${Date.now()}_${crypto.randomBytes(4).toString("hex")}_final.webp`
+                `${randomName()}_final.webp`
             );
 
-            // ─────────────────────────────
-            // WEBP SIN FORMA
-            // ─────────────────────────────
+            // ─────────────────────────────────────
+            // WEBP YA EXISTENTE
+            // ─────────────────────────────────────
 
-            if (
-                mime.includes("webp") &&
-                !selectedShape
-            ) {
-
+            if (mime.includes("webp")) {
                 const finalSticker = await addExif(
                     img,
                     f,
@@ -269,387 +252,146 @@ ${prefijo}${cmd} -a`
                 return;
             }
 
-            // ─────────────────────────────
-            // VIDEO/GIF SIN FORMA
-            // → STICKER ANIMADO
-            // ─────────────────────────────
+            // ─────────────────────────────────────
+            // ARCHIVO DE ENTRADA
+            // ─────────────────────────────────────
 
-            if (
-                /video|gif/i.test(mime) &&
-                !selectedShape
-            ) {
+            const ext = mime.includes("video")
+                ? "mp4"
+                : "jpg";
 
-                tmpIn = path.join(
-                    tmpdir(),
-                    `${Date.now()}_${crypto.randomBytes(4).toString("hex")}.mp4`
-                );
+            tmpIn = path.join(
+                tmpdir(),
+                `${randomName()}.${ext}`
+            );
 
-                tmpOut = path.join(
-                    tmpdir(),
-                    `${Date.now()}_${crypto.randomBytes(4).toString("hex")}.webp`
-                );
+            tmpOut = path.join(
+                tmpdir(),
+                `${randomName()}.webp`
+            );
 
-                await fs.promises.writeFile(
-                    tmpIn,
-                    img
-                );
+            await fs.promises.writeFile(
+                tmpIn,
+                img
+            );
 
-                await new Promise((resolve, reject) => {
+            // ─────────────────────────────────────
+            // FILTROS
+            // ─────────────────────────────────────
 
-                    ffmpeg(tmpIn)
-                        .inputOptions(["-y"])
-                        .outputOptions([
-                            "-vcodec libwebp",
-                            "-vf",
-                            "scale='min(512,iw)':min'(512,ih)':force_original_aspect_ratio=decrease,fps=15,pad=512:512:-1:-1:color=white@0.0,split[a][b];[a]palettegen=reserve_transparent=on:transparency_color=ffffff[p];[b][p]paletteuse",
-                            "-loop 0",
-                            "-t 18",
-                            "-an",
-                            "-vsync 0"
-                        ])
-                        .toFormat("webp")
-                        .save(tmpOut)
-                        .on("end", resolve)
-                        .on("error", reject);
+            let videoFilter;
 
-                });
+            if (mime.includes("video")) {
 
-                const animated =
-                    await fs.promises.readFile(tmpOut);
+                // Videos siempre mantienen proporción
+                // y se adaptan al sticker.
+                videoFilter =
+                    "scale=320:320:force_original_aspect_ratio=decrease," +
+                    "pad=320:320:(ow-iw)/2:(oh-ih)/2:color=white@0," +
+                    "fps=15";
 
-                const finalSticker =
-                    await addExif(
-                        animated,
-                        f,
-                        g
-                    );
+            } else if (optionC) {
 
-                await fs.promises.writeFile(
-                    tmpFinal,
-                    finalSticker
-                );
+                // ─────────────────────────────────
+                // CIRCULAR
+                // ─────────────────────────────────
 
-                await conn.sendFile(
-                    m.chat,
-                    tmpFinal,
-                    "sticker.webp",
-                    "",
-                    m,
-                    false,
-                    {
-                        asSticker: true,
-                        isAiSticker: true
-                    }
-                );
+                videoFilter =
+                    "scale=512:512:force_original_aspect_ratio=increase," +
+                    "crop=512:512," +
+                    "format=rgba," +
+                    "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':" +
+                    "a='if(lte((X-256)^2+(Y-256)^2,256^2),255,0)'";
 
-                return;
-            }
+            } else if (optionX) {
 
-            // ─────────────────────────────
-            // VIDEO/GIF CON FORMA
-            // → PRIMER FRAME
-            // ─────────────────────────────
+                // ─────────────────────────────────
+                // ACOPLADO 512x512
+                // ─────────────────────────────────
 
-            let frame = img;
+                videoFilter =
+                    "scale=512:512:force_original_aspect_ratio=decrease," +
+                    "pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0";
 
-            if (/video|gif/i.test(mime)) {
+            } else if (optionI) {
 
-                tmpIn = path.join(
-                    tmpdir(),
-                    `${Date.now()}_${crypto.randomBytes(4).toString("hex")}.mp4`
-                );
+                // ─────────────────────────────────
+                // AMPLIADO
+                // ─────────────────────────────────
 
-                tmpFrame = path.join(
-                    tmpdir(),
-                    `${Date.now()}_${crypto.randomBytes(4).toString("hex")}.png`
-                );
-
-                await fs.promises.writeFile(
-                    tmpIn,
-                    img
-                );
-
-                await new Promise((resolve, reject) => {
-
-                    ffmpeg(tmpIn)
-                        .inputOptions(["-y"])
-                        .outputOptions([
-                            "-frames:v 1",
-                            "-vf",
-                            "scale=500:500:force_original_aspect_ratio=decrease,pad=500:500:(ow-iw)/2:(oh-ih)/2:color=white@0.0"
-                        ])
-                        .toFormat("png")
-                        .save(tmpFrame)
-                        .on("end", resolve)
-                        .on("error", reject);
-
-                });
-
-                frame =
-                    await fs.promises.readFile(
-                        tmpFrame
-                    );
-            }
-
-            // ─────────────────────────────
-            // FORMA / TRANSFORMACIÓN
-            // ─────────────────────────────
-
-            if (selectedShape) {
-
-                // Flip horizontal
-                if (
-                    selectedShape ===
-                    "flip-horizontal"
-                ) {
-
-                    tmpIn = path.join(
-                        tmpdir(),
-                        `${Date.now()}_${crypto.randomBytes(4).toString("hex")}_flip.png`
-                    );
-
-                    tmpOut = path.join(
-                        tmpdir(),
-                        `${Date.now()}_${crypto.randomBytes(4).toString("hex")}_flip.webp`
-                    );
-
-                    await fs.promises.writeFile(
-                        tmpIn,
-                        frame
-                    );
-
-                    await new Promise((resolve, reject) => {
-
-                        ffmpeg(tmpIn)
-                            .inputOptions(["-y"])
-                            .outputOptions([
-                                "-vf",
-                                "hflip,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0",
-                                "-vcodec libwebp",
-                                "-pix_fmt yuva420p"
-                            ])
-                            .toFormat("webp")
-                            .save(tmpOut)
-                            .on("end", resolve)
-                            .on("error", reject);
-
-                    });
-
-                }
-
-                // Flip vertical
-                else if (
-                    selectedShape ===
-                    "flip-vertical"
-                ) {
-
-                    tmpIn = path.join(
-                        tmpdir(),
-                        `${Date.now()}_${crypto.randomBytes(4).toString("hex")}_flip.png`
-                    );
-
-                    tmpOut = path.join(
-                        tmpdir(),
-                        `${Date.now()}_${crypto.randomBytes(4).toString("hex")}_flip.webp`
-                    );
-
-                    await fs.promises.writeFile(
-                        tmpIn,
-                        frame
-                    );
-
-                    await new Promise((resolve, reject) => {
-
-                        ffmpeg(tmpIn)
-                            .inputOptions(["-y"])
-                            .outputOptions([
-                                "-vf",
-                                "vflip,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0",
-                                "-vcodec libwebp",
-                                "-pix_fmt yuva420p"
-                            ])
-                            .toFormat("webp")
-                            .save(tmpOut)
-                            .on("end", resolve)
-                            .on("error", reject);
-
-                    });
-
-                }
-
-                // Forma
-                else {
-
-                    tmpIn = path.join(
-                        tmpdir(),
-                        `${Date.now()}_${crypto.randomBytes(4).toString("hex")}_shape.png`
-                    );
-
-                    tmpMask = path.join(
-                        tmpdir(),
-                        `${Date.now()}_${crypto.randomBytes(4).toString("hex")}_mask.png`
-                    );
-
-                    tmpOut = path.join(
-                        tmpdir(),
-                        `${Date.now()}_${crypto.randomBytes(4).toString("hex")}_shape.webp`
-                    );
-
-                    await fs.promises.writeFile(
-                        tmpIn,
-                        frame
-                    );
-
-                    const svg =
-                        getSVGMask(
-                            selectedShape,
-                            500
-                        );
-
-                    await fs.promises.writeFile(
-                        tmpMask,
-                        Buffer.from(svg)
-                    );
-
-                    // Primero preparar la imagen
-                    await new Promise((resolve, reject) => {
-
-                        ffmpeg(tmpIn)
-                            .inputOptions(["-y"])
-                            .outputOptions([
-                                "-vf",
-                                "scale=500:500:force_original_aspect_ratio=decrease,pad=500:500:(ow-iw)/2:(oh-ih)/2:color=white@0.0",
-                                "-frames:v 1"
-                            ])
-                            .toFormat("png")
-                            .save(tmpIn + "_prepared.png")
-                            .on("end", resolve)
-                            .on("error", reject);
-
-                    });
-
-                    const prepared =
-                        tmpIn + "_prepared.png";
-
-                    // Aplicar máscara
-                    await new Promise((resolve, reject) => {
-
-                        ffmpeg()
-                            .input(prepared)
-                            .input(tmpMask)
-                            .complexFilter([
-                                "[0:v]format=rgba[img]",
-                                "[1:v]format=gray[mask]",
-                                "[img][mask]alphamerge"
-                            ])
-                            .outputOptions([
-                                "-frames:v 1",
-                                "-pix_fmt rgba"
-                            ])
-                            .toFormat("png")
-                            .save(tmpOut + ".png")
-                            .on("end", resolve)
-                            .on("error", reject);
-
-                    });
-
-                    const masked =
-                        tmpOut + ".png";
-
-                    // Convertir a WebP
-                    await new Promise((resolve, reject) => {
-
-                        ffmpeg(masked)
-                            .inputOptions(["-y"])
-                            .outputOptions([
-                                "-vcodec libwebp",
-                                "-lossless 0",
-                                "-compression_level 6",
-                                "-q:v 80",
-                                "-pix_fmt yuva420p"
-                            ])
-                            .toFormat("webp")
-                            .save(tmpOut)
-                            .on("end", resolve)
-                            .on("error", reject);
-
-                    });
-
-                    // Limpieza intermedia
-                    for (const file of [
-                        prepared,
-                        masked
-                    ]) {
-                        if (fs.existsSync(file)) {
-                            try {
-                                fs.unlinkSync(file);
-                            } catch {}
-                        }
-                    }
-                }
+                videoFilter =
+                    "scale=512:512:force_original_aspect_ratio=increase," +
+                    "crop=512:512";
 
             } else {
 
-                // ─────────────────────────
-                // STICKER NORMAL
-                // ─────────────────────────
+                // ─────────────────────────────────
+                // NORMAL
+                // ─────────────────────────────────
 
-                tmpIn = path.join(
-                    tmpdir(),
-                    `${Date.now()}_${crypto.randomBytes(4).toString("hex")}.jpg`
-                );
-
-                tmpOut = path.join(
-                    tmpdir(),
-                    `${Date.now()}_${crypto.randomBytes(4).toString("hex")}.webp`
-                );
-
-                await fs.promises.writeFile(
-                    tmpIn,
-                    frame
-                );
-
-                await new Promise((resolve, reject) => {
-
-                    ffmpeg(tmpIn)
-                        .inputOptions(["-y"])
-                        .outputOptions([
-                            "-vcodec libwebp",
-                            "-vf",
-                            "scale='min(320,iw)':min'(320,ih)':force_original_aspect_ratio=decrease,pad=320:320:-1:-1:color=white@0.0,split[a][b];[a]palettegen=reserve_transparent=on:transparency_color=ffffff[p];[b][p]paletteuse"
-                        ])
-                        .toFormat("webp")
-                        .save(tmpOut)
-                        .on("end", resolve)
-                        .on("error", reject);
-
-                });
+                videoFilter =
+                    "scale=320:320:force_original_aspect_ratio=decrease," +
+                    "pad=320:320:(ow-iw)/2:(oh-ih)/2:color=white@0";
             }
 
-            // ─────────────────────────────
-            // EXIF FINAL
-            // ─────────────────────────────
+            // ─────────────────────────────────────
+            // CONVERTIR A WEBP
+            // ─────────────────────────────────────
 
-            const webpBuffer =
-                await fs.promises.readFile(
-                    tmpOut
-                );
+            const outputOptions = [
+                "-vcodec libwebp"
+            ];
 
-            const finalSticker =
-                await addExif(
-                    webpBuffer,
-                    f,
-                    g
+            if (mime.includes("video")) {
+                outputOptions.push(
+                    "-loop", "0",
+                    "-an",
+                    "-vsync", "0",
+                    "-pix_fmt", "yuva420p"
                 );
+            }
+
+            outputOptions.push(
+                "-vf",
+                videoFilter
+            );
+
+            if (mime.includes("video")) {
+                outputOptions.push(
+                    "-lossless", "0",
+                    "-compression_level", "6",
+                    "-q:v", "60"
+                );
+            }
+
+            await new Promise((resolve, reject) => {
+                ffmpeg(tmpIn)
+                    .inputOptions(["-y"])
+                    .outputOptions(outputOptions)
+                    .toFormat("webp")
+                    .save(tmpOut)
+                    .on("end", resolve)
+                    .on("error", reject);
+            });
+
+            // ─────────────────────────────────────
+            // EXIF
+            // ─────────────────────────────────────
+
+            const finalSticker = await addExif(
+                await fs.promises.readFile(tmpOut),
+                f,
+                g
+            );
 
             await fs.promises.writeFile(
                 tmpFinal,
                 finalSticker
             );
 
-            // ─────────────────────────────
-            // ENVIAR
-            // ─────────────────────────────
+            // ─────────────────────────────────────
+            // ENVIAR STICKER
+            // ─────────────────────────────────────
 
             await conn.sendFile(
                 m.chat,
@@ -666,10 +408,7 @@ ${prefijo}${cmd} -a`
 
         } catch (err) {
 
-            console.error(
-                "❌ Error en /s:",
-                err
-            );
+            console.error("❌ Error en /s:", err);
 
             return m.reply(
                 m.e.error +
@@ -678,24 +417,13 @@ ${prefijo}${cmd} -a`
 
         } finally {
 
-            // ─────────────────────────────
-            // LIMPIAR TEMPORALES
-            // ─────────────────────────────
-
-            const files = [
+            for (const file of [
                 tmpIn,
                 tmpOut,
-                tmpFinal,
-                tmpFrame,
-                tmpMask
-            ];
+                tmpFinal
+            ]) {
 
-            for (const file of files) {
-
-                if (
-                    file &&
-                    fs.existsSync(file)
-                ) {
+                if (file && fs.existsSync(file)) {
 
                     try {
                         fs.unlinkSync(file);
@@ -705,162 +433,3 @@ ${prefijo}${cmd} -a`
         }
     }
 };
-
-
-// ═══════════════════════════════════════
-// MÁSCARAS SVG
-// ═══════════════════════════════════════
-
-function getSVGMask(shape, size) {
-
-    const half = size / 2;
-    const quarter = size / 4;
-    const threeQuarter = 3 * quarter;
-    const radius = size * 0.15;
-
-    switch (shape) {
-
-        case "circle":
-            return `
-<svg width="${size}" height="${size}">
-    <circle
-        cx="${half}"
-        cy="${half}"
-        r="${half}"
-        fill="white"/>
-</svg>`;
-
-        case "triangle":
-            return `
-<svg width="${size}" height="${size}">
-    <polygon
-        points="${half},0 ${size},${size} 0,${size}"
-        fill="white"/>
-</svg>`;
-
-        case "diamond":
-            return `
-<svg width="${size}" height="${size}">
-    <polygon
-        points="${half},0 ${size},${half} ${half},${size} 0,${half}"
-        fill="white"/>
-</svg>`;
-
-        case "hexagon":
-            return `
-<svg width="${size}" height="${size}">
-    <polygon
-        points="${half},0 ${size},${quarter} ${size},${threeQuarter} ${half},${size} 0,${threeQuarter} 0,${quarter}"
-        fill="white"/>
-</svg>`;
-
-        case "pentagon":
-            return `
-<svg width="${size}" height="${size}">
-    <polygon
-        points="${half},0 ${size},${quarter} ${3 * quarter},${size} ${quarter},${size} 0,${quarter}"
-        fill="white"/>
-</svg>`;
-
-        case "heart":
-            return `
-<svg width="${size}" height="${size}" viewBox="0 0 32 29.6">
-    <path
-        d="M23.6,0c-2.7,0-5.1,1.3-6.6,3.3C15.5,1.3,13.1,0,10.4,0C4.7,0,0,4.7,0,10.4c0,6,6.2,10.9,15.7,18.5L16,29.6l0.3-0.3C25.8,21.3,32,16.4,32,10.4C32,4.7,27.3,0,21.6,0H23.6z"
-        fill="white"/>
-</svg>`;
-
-        case "blob":
-            return `
-<svg width="${size}" height="${size}">
-    <path
-        d="M150 0 C250 50,250 150,150 200 C50 250,0 150,50 50 Z"
-        fill="white"
-        transform="scale(${size / 300})"/>
-</svg>`;
-
-        case "leaf":
-            return `
-<svg width="${size}" height="${size}">
-    <path
-        d="M${half},0 C${size},${quarter},${quarter},${size} 0,${size} C0,${half} 0,${quarter} ${half},0 Z"
-        fill="white"/>
-</svg>`;
-
-        case "moon":
-            return `
-<svg width="${size}" height="${size}">
-    <path
-        d="M${half},0 A${half},${half} 0 1,0 ${half},${size} A${size * 0.6},${half} 0 1,1 ${half},0 Z"
-        fill="white"/>
-</svg>`;
-
-        case "star":
-            return `
-<svg width="${size}" height="${size}">
-    <polygon
-        points="${half},0 ${half + 15},${half - 10} ${size},${half} ${half + 15},${half + 10} ${half},${size} ${half - 15},${half + 10} 0,${half} ${half - 15},${half - 10}"
-        fill="white"/>
-</svg>`;
-
-        case "zap":
-            return `
-<svg width="${size}" height="${size}">
-    <polygon
-        points="${half - 20},${half} ${half + 10},${half} ${half - 10},${size} ${half + 30},${half} ${half},${half} ${half + 10},0"
-        fill="white"/>
-</svg>`;
-
-        case "curve":
-            return `
-<svg width="${size}" height="${size}">
-    <path
-        d="M0,${size} Q${half},0 ${size},${size} Z"
-        fill="white"/>
-</svg>`;
-
-        case "edges":
-            return `
-<svg width="${size}" height="${size}">
-    <rect
-        width="${size}"
-        height="${size}"
-        rx="${radius}"
-        ry="${radius}"
-        fill="white"/>
-</svg>`;
-
-        case "mirror":
-            return `
-<svg width="${size}" height="${size}">
-    <rect
-        width="${half}"
-        height="${size}"
-        x="0"
-        fill="white"/>
-</svg>`;
-
-        case "arrow":
-            return `
-<svg width="${size}" height="${size}">
-    <polygon
-        points="0,${half - 50} ${half},${half - 50} ${half},0 ${size},${half} ${half},${size} ${half},${half + 50} 0,${half + 50}"
-        fill="white"/>
-</svg>`;
-
-        case "attach":
-        case "expand":
-            return `
-<svg width="${size}" height="${size}">
-    <rect
-        width="${size}"
-        height="${size}"
-        fill="white"/>
-</svg>`;
-
-        default:
-            throw new Error(
-                `Forma no soportada: ${shape}`
-            );
-    }
-}
