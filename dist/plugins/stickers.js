@@ -56,7 +56,8 @@ export default {
 
             const user = userResult.rows[0] || {};
 
-            let f, g;
+            let f;
+            let g;
 
             if (user.sticker_packname && user.sticker_author) {
                 f = user.sticker_packname;
@@ -94,7 +95,7 @@ export default {
                 optionD ||
                 optionL;
 
-            const q = m.quoted ? m.quoted : m;
+            const q = m.quoted || m;
             let qmsg = q?.msg || q;
 
             let mime =
@@ -107,6 +108,18 @@ export default {
 
             mime = String(mime).toLowerCase();
 
+            if (!mime && m.msg) {
+                qmsg = m.msg;
+
+                mime =
+                    m.msg?.mimetype ||
+                    m.msg?.mimeType ||
+                    m.msg?.mediaType ||
+                    "";
+                
+                mime = String(mime).toLowerCase();
+            }
+
             if (!mime && m.message) {
                 const message =
                     m.message?.ephemeralMessage?.message ||
@@ -116,63 +129,78 @@ export default {
 
                 if (message?.imageMessage) {
                     qmsg = message.imageMessage;
-                    mime = message.imageMessage.mimetype || "image/jpeg";
-                }
-
-                if (message?.videoMessage) {
+                    mime = String(
+                        message.imageMessage.mimetype || "image/jpeg"
+                    ).toLowerCase();
+                } else if (message?.videoMessage) {
                     qmsg = message.videoMessage;
-                    mime = message.videoMessage.mimetype || "video/mp4";
-                }
-
-                if (message?.stickerMessage) {
+                    mime = String(
+                        message.videoMessage.mimetype || "video/mp4"
+                    ).toLowerCase();
+                } else if (message?.stickerMessage) {
                     qmsg = message.stickerMessage;
-                    mime = message.stickerMessage.mimetype || "image/webp";
+                    mime = String(
+                        message.stickerMessage.mimetype || "image/webp"
+                    ).toLowerCase();
                 }
             }
 
-            if (!/webp|image|video/.test(mime)) {
-                return m.reply(null, m.e.warn + `╭  ✦ *Sticker Maker* ✦  ╮
+            const isImage =
+                mime.includes("image") ||
+                mime.includes("webp");
 
-➠ ${prefijo}${cmd} <media>
-Crea un sticker normal.
+            const isVideo = mime.includes("video");
 
-➠ ${prefijo}${cmd} -i
-Imagen ampliada.
+            if (!isImage && !isVideo) {
+                return m.reply(
+                    m.e.warn +
+                    `╭  ✦ *Sticker Maker* ✦  ╮
 
-➠ ${prefijo}${cmd} -x
-Acoplado 512×512.
+➠✐ ${prefijo}${cmd} <media>
+Crea un sticker de una imagen o video.
 
-➠ ${prefijo}${cmd} -c
-Circular.
+➠✐ ${prefijo}${cmd} -i
+Amplía la imagen.
 
-➠ ${prefijo}${cmd} -v
-Vertical.
+➠✐ ${prefijo}${cmd} -x
+Acopla la imagen a 512×512.
 
-➠ ${prefijo}${cmd} -h
-Horizontal.
+➠✐ ${prefijo}${cmd} -c
+Convierte la imagen en circular.
 
-➠ ${prefijo}${cmd} -d
-Hacia la derecha.
+➠✐ ${prefijo}${cmd} -v
+Voltea verticalmente.
 
-➠ ${prefijo}${cmd} -l
-Hacia la izquierda.
+➠✐ ${prefijo}${cmd} -h
+Voltea horizontalmente.
 
-✐ Los efectos funcionan *SOLO con imágenes*.
-✐ Los videos se convierten normalmente.
+➠✐ ${prefijo}${cmd} -d
+Gira 90° a la derecha.
+
+➠✐ ${prefijo}${cmd} -l
+Gira 90° a la izquierda.
+
+➠✐ Los efectos son *SOLO PARA IMÁGENES*.
 
 ╰━━━━━━━━━━━━━━━━`
                 );
             }
 
-            if (hasEffect && mime.includes("video")) {
+            if (hasEffect && isVideo) {
                 return m.reply(
                     m.e.warn +
                     " *Los efectos solo funcionan con imágenes.* 🖼️\n\n" +
-                    `➠✐ Usa ${prefijo}${cmd} sin ninguna opción para convertir el video.`
+                    `➠✐ Usa ${prefijo}${cmd} sin opciones para convertir el video.`
                 );
             }
 
-            if (mime.includes("video") && (qmsg?.seconds || q?.seconds) > 18) {
+            const seconds =
+                Number(qmsg?.seconds) ||
+                Number(q?.seconds) ||
+                Number(m.msg?.seconds) ||
+                0;
+
+            if (isVideo && seconds > 18) {
                 return m.reply(
                     m.e.warn +
                     " ¿Dónde has visto un sticker de 15 segundos? Hazlo más corto, máximo 12s."
@@ -191,7 +219,6 @@ Hacia la izquierda.
 
             if (!img) {
                 return m.reply(
-                    null,
                     m.e.warn +
                     " *Y la imagen? 🤔* Responde a una imagen, video o sticker para hacer el sticker."
                 );
@@ -203,7 +230,11 @@ Hacia la izquierda.
             );
 
             if (mime.includes("webp") && !hasEffect) {
-                const finalSticker = await addExif(img, f, g);
+                const finalSticker = await addExif(
+                    img,
+                    f,
+                    g
+                );
 
                 await fs.promises.writeFile(
                     tmpFinal,
@@ -226,7 +257,7 @@ Hacia la izquierda.
                 return;
             }
 
-            const ext = mime.includes("video") ? "mp4" : "jpg";
+            const ext = isVideo ? "mp4" : "jpg";
 
             tmpIn = path.join(
                 tmpdir(),
@@ -238,53 +269,70 @@ Hacia la izquierda.
                 `${Date.now()}_${crypto.randomBytes(4).toString("hex")}.webp`
             );
 
-            await fs.promises.writeFile(tmpIn, img);
+            await fs.promises.writeFile(
+                tmpIn,
+                img
+            );
+
+            const efectos = [];
+
+            if (optionI) {
+                efectos.push(
+                    "scale=512:512:force_original_aspect_ratio=increase",
+                    "crop=512:512"
+                );
+            }
+
+            if (optionX) {
+                efectos.push(
+                    "scale=512:512:force_original_aspect_ratio=decrease",
+                    "pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0"
+                );
+            }
+
+            if (optionC) {
+                efectos.push(
+                    "scale=512:512:force_original_aspect_ratio=increase",
+                    "crop=512:512",
+                    "format=rgba",
+                    "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte((X-256)^2+(Y-256)^2,256^2),255,0)'",
+                    "format=yuva420p"
+                );
+            }
+
+            if (optionV) {
+                efectos.push("vflip");
+            }
+
+            if (optionH) {
+                efectos.push("hflip");
+            }
+
+            if (optionD) {
+                efectos.push("transpose=1");
+            }
+
+            if (optionL) {
+                efectos.push("transpose=2");
+            }
+
+            const filtroBase =
+                "scale='min(320,iw)':min'(320,ih)':force_original_aspect_ratio=decrease," +
+                "fps=15," +
+                "pad=320:320:-1:-1:color=white@0.0," +
+                "split [a][b];" +
+                "[a] palettegen=reserve_transparent=on:transparency_color=ffffff [p];" +
+                "[b][p] paletteuse";
 
             let filter;
 
             if (!hasEffect) {
+                filter = filtroBase;
+            } else {
                 filter =
-                    "scale='min(320,iw)':min'(320,ih)':force_original_aspect_ratio=decrease," +
-                    "fps=15," +
-                    "pad=320:320:-1:-1:color=white@0.0," +
-                    "split [a][b];" +
-                    "[a] palettegen=reserve_transparent=on:transparency_color=ffffff [p];" +
-                    "[b][p] paletteuse";
-            } else if (optionI) {
-                filter =
-                    "scale=512:512:force_original_aspect_ratio=increase," +
-                    "crop=512:512";
-            } else if (optionX) {
-                filter =
-                    "scale=512:512:force_original_aspect_ratio=decrease," +
-                    "pad=512:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0";
-            } else if (optionC) {
-                filter =
-                    "scale=512:512:force_original_aspect_ratio=increase," +
-                    "crop=512:512," +
-                    "format=rgba," +
-                    "geq=" +
-                    "r='r(X,Y)':" +
-                    "g='g(X,Y)':" +
-                    "b='b(X,Y)':" +
-                    "a='if(lte((X-256)^2+(Y-256)^2,256^2),255,0)'," +
-                    "format=yuva420p";
-            } else if (optionV) {
-                filter =
-                    "scale=512:640:force_original_aspect_ratio=decrease," +
-                    "pad=512:640:(ow-iw)/2:(oh-ih)/2:color=white@0.0";
-            } else if (optionH) {
-                filter =
-                    "scale=640:512:force_original_aspect_ratio=decrease," +
-                    "pad=640:512:(ow-iw)/2:(oh-ih)/2:color=white@0.0";
-            } else if (optionD) {
-                filter =
-                    "scale=450:450:force_original_aspect_ratio=decrease," +
-                    "pad=512:512:62:(oh-ih)/2:color=white@0.0";
-            } else if (optionL) {
-                filter =
-                    "scale=450:450:force_original_aspect_ratio=decrease," +
-                    "pad=512:512:0:(oh-ih)/2:color=white@0.0";
+                    efectos.join(",") +
+                    "," +
+                    filtroBase;
             }
 
             const outputOptions = [
@@ -292,7 +340,7 @@ Hacia la izquierda.
                 "libwebp"
             ];
 
-            if (mime.includes("video")) {
+            if (isVideo) {
                 outputOptions.push(
                     "-loop",
                     "0",
@@ -309,7 +357,7 @@ Hacia la izquierda.
                 filter
             );
 
-            if (mime.includes("video")) {
+            if (isVideo) {
                 outputOptions.push(
                     "-lossless",
                     "0",
