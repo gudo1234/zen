@@ -6,8 +6,8 @@ import { tmpdir } from "os";
 import crypto from "crypto";
 import webp from "node-webpmux";
 
-const packnameDefault = "𝗦𝗧𝗜𝗖𝗞𝗘𝗥𝗦❤️‍🔥 - Mitzuki\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
-const authorDefault = "Owner: @elrebelde21\n• Dueña: @itschinita_official";
+const packnameDefault = m.pushName + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
+const authorDefault = "✓";
 
 async function addExif(webpSticker, packname, author, categories = [""]) {
     const img = new webp.Image();
@@ -131,37 +131,36 @@ export default {
             }
 
             if (!/webp|image|video/.test(mime)) {
-                return m.reply(
-`╭  ✦ *Sticker Maker* ✦  ╮
+                return m.reply(null, m.e.warn + `╭  ✦ *Sticker Maker* ✦  ╮
 
-➠✐ ${prefijo}${cmd} <media>
+➠ ${prefijo}${cmd} <media>
 Crea un sticker normal.
 
-➠✐ ${prefijo}${cmd} -i
+➠ ${prefijo}${cmd} -i
 Imagen ampliada.
 
-➠✐ ${prefijo}${cmd} -x
+➠ ${prefijo}${cmd} -x
 Acoplado 512×512.
 
-➠✐ ${prefijo}${cmd} -c
+➠ ${prefijo}${cmd} -c
 Circular.
 
-➠✐ ${prefijo}${cmd} -v
+➠ ${prefijo}${cmd} -v
 Vertical.
 
-➠✐ ${prefijo}${cmd} -h
+➠ ${prefijo}${cmd} -h
 Horizontal.
 
-➠✐ ${prefijo}${cmd} -d
+➠ ${prefijo}${cmd} -d
 Hacia la derecha.
 
-➠✐ ${prefijo}${cmd} -l
+➠ ${prefijo}${cmd} -l
 Hacia la izquierda.
 
-➠✐ Los efectos funcionan *SOLO con imágenes*.
-➠✐ Los videos se convierten normalmente.
+✐ Los efectos funcionan *SOLO con imágenes*.
+✐ Los videos se convierten normalmente.
 
-╰━━━━━━━━━━━━━━━━━━━━╯`
+╰━━━━━━━━━━━━━━━━`
                 );
             }
 
