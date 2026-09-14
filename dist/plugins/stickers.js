@@ -10,7 +10,7 @@ const packnameDefault =
     `${m.pushName}\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n`;
 
 const authorDefault =
-    "";
+    "xd";
 
 const shapeFlags = {
     "-c": "circle",
