@@ -6,10 +6,10 @@ import { tmpdir } from "os";
 import crypto from "crypto";
 import webp from "node-webpmux";
 
-const packnameDefault = "xd\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
+const packnameDefault = "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
 const authorDefault = "✓";
 
-async function addExif(webpSticker, packname, m.pushName, categories = [""]) {
+async function addExif(webpSticker, packname, author, categories = [""]) {
     const img = new webp.Image();
     const stickerPackId = crypto.randomBytes(32).toString("hex");
 
