@@ -6,8 +6,8 @@ import { tmpdir } from "os";
 import crypto from "crypto";
 import webp from "node-webpmux";
 
-const packnameDefault = `${m.pushName}\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n`;
-const authorDefault = "xd";
+const packnameDefault = `zentrix-ai\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n`;
+const authorDefault = "stickers";
 
 async function addExif(webpSticker, packname, author, categories = [""]) {
     const img = new webp.Image();
