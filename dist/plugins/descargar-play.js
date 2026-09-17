@@ -71,121 +71,80 @@ export default {
                 throw new Error("Comando de descarga no válido.");
 
             let url = text.trim();
-            let result = null;
-            let info = null;
+            let data;
 
             const isYoutube =
                 /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(url);
 
             if (!isYoutube) {
-                result = (await ytSearch(text)).videos?.[0];
+                const result = (await ytSearch(text)).videos?.[0];
 
                 if (!result)
                     throw new Error(`No encontré resultados para: ${text}`);
 
                 url = result.url;
 
-                const duration = result.timestamp || "Desconocida";
-                const seconds = parseDuration(duration);
-                const over20 = seconds > 1200;
-                const sendDocument = isDocument || over20;
-
-                const tipo = isAudio
-                    ? sendDocument ? "audio en documento" : "audio"
-                    : sendDocument ? "video en documento" : "video";
-
-                const aviso =
-                    !isDocument && over20
-                        ? "\n\n> ‣ Se enviará como documento por superar 20 minutos."
-                        : "";
-
-                info = `╭──── • ────╮
-✦ *Título:* ${result.title}
-✦ *Autor:* ${result.author?.name || "Desconocido"}
-✦ *Duración:* ${duration}
-✦ *Formato:* ${type.toUpperCase()}
-✦ *Calidad:* ${isAudio ? "256KBPS" : "720P"}
-⏳ *Preparando ${tipo}...*${aviso}
-╰──── • ────╯`;
-
-                let thumbnail = null;
-
-                try {
-                    const thumb = await fetch(result.thumbnail);
-                    if (thumb.ok)
-                        thumbnail = Buffer.from(await thumb.arrayBuffer());
-                } catch {}
-
-                await conn.reply(m.chat, info, m, {
-                    thumbnail,
-                    title: "DL-YOUTUBE",
-                    description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
-                    largeThumbnail: false,
-                    previewType: isAudio ? 1 : 2,
-                    thumbnailUrl: "https://www.instagram.com/edi504_"
-                });
+                data = {
+                    title: result.title,
+                    author: result.author?.name || "Desconocido",
+                    duration: result.timestamp || "Desconocida",
+                    thumbnail: result.thumbnail,
+                    format: type,
+                    quality: isAudio ? "256KBPS" : "720P"
+                };
             }
 
-            const api =
-                `https://api.alyacore.xyz/dl/youtubeplayv2?query=${encodeURIComponent(url)}&type=${type}&key=oboe`;
+            if (isYoutube || !data?.dl) {
+                try {
+                    data = await alyaCore(url, type);
+                } catch {
+                    data = await lempi(url, type);
+                }
+            }
 
-            const res = await fetch(api, {
-                headers: { "User-Agent": "Mozilla/5.0" }
-            });
-
-            if (!res.ok)
-                throw new Error(`AlyaCore HTTP ${res.status}`);
-
-            const json = await res.json();
-
-            if (!json?.status || !json?.data?.dl)
-                throw new Error(
-                    json?.message || "La API no devolvió el enlace de descarga."
-                );
-
-            const d = json.data;
-            const seconds = parseDuration(d.duration);
+            const seconds = parseDuration(data.duration);
             const over20 = seconds > 1200;
             const sendDocument = isDocument || over20;
 
-            if (isYoutube) {
-                const tipo = isAudio
-                    ? sendDocument ? "audio en documento" : "audio"
-                    : sendDocument ? "video en documento" : "video";
+            const tipo = isAudio
+                ? sendDocument ? "audio en documento" : "audio"
+                : sendDocument ? "video en documento" : "video";
 
-                const aviso =
-                    !isDocument && over20
-                        ? "\n\n> ‣ Se enviará como documento por superar 20 minutos."
-                        : "";
+            const aviso =
+                !isDocument && over20
+                    ? "\n\n> ‣ Se enviará como documento por superar 20 minutos."
+                    : "";
 
-                const info = `╭──── • ────╮
-✦ *Título:* ${d.title}
-✦ *Autor:* ${d.author}
-✦ *Duración:* ${d.duration}
-✦ *Formato:* ${d.format.toUpperCase()}
-✦ *Calidad:* ${d.quality}
+            const info = `╭──── • ────╮
+✦ *Título:* ${data.title}
+✦ *Autor:* ${data.author}
+✦ *Duración:* ${data.duration}
+✦ *Formato:* ${data.format.toUpperCase()}
+✦ *Calidad:* ${data.quality}
 ⏳ *Preparando ${tipo}...*${aviso}
 ╰──── • ────╯`;
 
-                let thumbnail = null;
+            let thumbnail = null;
 
-                try {
-                    const thumb = await fetch(d.thumbnail);
-                    if (thumb.ok)
-                        thumbnail = Buffer.from(await thumb.arrayBuffer());
-                } catch {}
+            try {
+                const thumb = await fetch(data.thumbnail);
+                if (thumb.ok)
+                    thumbnail = Buffer.from(await thumb.arrayBuffer());
+            } catch {}
 
-                await conn.reply(m.chat, info, m, {
-                    thumbnail,
-                    title: "DL-YOUTUBE",
-                    description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
-                    largeThumbnail: false,
-                    previewType: isAudio ? 1 : 2,
-                    thumbnailUrl: "https://www.instagram.com/edi504_"
-                });
-            }
+            await conn.reply(m.chat, info, m, {
+                thumbnail,
+                title: "DL-YOUTUBE",
+                description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
+                largeThumbnail: false,
+                previewType: isAudio ? 1 : 2,
+                thumbnailUrl: "https://www.instagram.com/edi504_"
+            });
 
-            const buffer = await downloadMedia(d.dl);
+            if (!data.dl)
+                throw new Error("La API no devolvió un enlace de descarga.");
+
+            const buffer = await downloadMedia(data.dl);
 
             if (isAudio) {
                 await conn.sendMessage(
@@ -194,12 +153,12 @@ export default {
                         ? {
                             document: buffer,
                             mimetype: "audio/mpeg",
-                            fileName: d.fileName
+                            fileName: data.fileName
                         }
                         : {
                             audio: buffer,
                             mimetype: "audio/mpeg",
-                            fileName: d.fileName,
+                            fileName: data.fileName,
                             ptt: false
                         },
                     { quoted: m }
@@ -211,12 +170,12 @@ export default {
                         ? {
                             document: buffer,
                             mimetype: "video/mp4",
-                            fileName: d.fileName
+                            fileName: data.fileName
                         }
                         : {
                             video: buffer,
                             mimetype: "video/mp4",
-                            caption: `🔰 *${d.title}*`
+                            caption: `🔰 *${data.title}*`
                         },
                     { quoted: m }
                 );
@@ -227,16 +186,79 @@ export default {
         } catch (e) {
             console.error("❌ Error en /play:", e);
             await m.react("❌");
-
             return m.reply(
                 `${m.e.warn} No se pudo procesar la descarga.\n\n> ${e.message || "Error desconocido."}`
             );
-
         } finally {
             delete userRequests[m.sender];
         }
     }
 };
+
+async function alyaCore(url, type) {
+    const api =
+        `https://api.alyacore.xyz/dl/youtubeplayv2?query=${encodeURIComponent(url)}&type=${type}&key=oboe`;
+
+    const json = await fetchJson(api);
+
+    if (!json?.status || !json?.data?.dl)
+        throw new Error("AlyaCore no devolvió una descarga válida.");
+
+    const d = json.data;
+
+    return {
+        title: d.title,
+        author: d.author,
+        duration: d.duration,
+        thumbnail: d.thumbnail,
+        format: d.format,
+        quality: d.quality,
+        fileName: d.fileName,
+        dl: d.dl
+    };
+}
+
+async function lempi(url, type) {
+    const api =
+        `https://api.lempi.lat/dl/${type === "mp3" ? "yta" : "ytv"}?url=${encodeURIComponent(url)}&apikey=lem_653af68318d77de0ef137af194cf241880ce58a3`;
+
+    const json = await fetchJson(api);
+
+    if (!json?.status || !json?.datos?.url)
+        throw new Error("Lempi no devolvió una descarga válida.");
+
+    const d = json.datos;
+
+    return {
+        title: json.titulo,
+        author: json.canal,
+        duration: json.duracion,
+        thumbnail: json.miniatura,
+        format: d.extension.replace(".", ""),
+        quality: d.calidad,
+        fileName: d.archivo,
+        dl: d.url
+    };
+}
+
+async function fetchJson(url) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    try {
+        const res = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0" },
+            signal: controller.signal
+        });
+
+        if (!res.ok)
+            throw new Error(`HTTP ${res.status}`);
+
+        return await res.json();
+    } finally {
+        clearTimeout(timeout);
+    }
+}
 
 async function downloadMedia(url) {
     let error;
@@ -276,10 +298,8 @@ async function downloadMedia(url) {
 
         } catch (e) {
             error = e;
-
             if (i < 3)
                 await new Promise(r => setTimeout(r, i * 3000));
-
         } finally {
             clearTimeout(timeout);
         }
@@ -289,6 +309,16 @@ async function downloadMedia(url) {
 }
 
 function parseDuration(duration) {
+    const match = String(duration || "").match(
+        /(\d+)\s*\(\s*(\d+):(\d+)(?::(\d+))?\s*\)/
+    );
+
+    if (match) {
+        return match[4]
+            ? Number(match[2]) * 3600 + Number(match[3]) * 60 + Number(match[4])
+            : Number(match[2]) * 60 + Number(match[3]);
+    }
+
     const p = String(duration || "").split(":").map(Number);
 
     if (p.some(Number.isNaN))
