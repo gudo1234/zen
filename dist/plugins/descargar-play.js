@@ -29,7 +29,7 @@ export default {
     run: async ({ conn, m, text, prefijo, cmd }) => {
         if (!text)
             return m.reply(
-                `¿Qué estás buscando?\n\n${m.e.warn} *Usa:*\n${prefijo + cmd} <canción o link>\n*Ej:* ${prefijo + cmd} diles`
+                `✓ ¿Qué estás buscando?\n\n${m.e.warn} *Usa:*\n${prefijo + cmd} <canción o link>\n*Ej:* ${prefijo + cmd} diles`
             );
 
         if (userRequests[m.sender])
@@ -66,6 +66,8 @@ export default {
 
             let url = text.trim();
             let data;
+            let infoMsg = null;
+            let usedLempi = false;
 
             const isYoutube =
                 /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(url);
@@ -88,7 +90,6 @@ export default {
                 };
 
                 const info = crearInfo(data, isAudio, isDocument);
-
                 let thumbnail = null;
 
                 try {
@@ -97,7 +98,7 @@ export default {
                         thumbnail = Buffer.from(await t.arrayBuffer());
                 } catch {}
 
-                await conn.reply(m.chat, info, m, {
+                infoMsg = await conn.reply(m.chat, info, m, {
                     thumbnail,
                     title: "DL-YOUTUBE",
                     description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
@@ -111,11 +112,11 @@ export default {
                 data = await alyaCore(url, type);
             } catch {
                 data = await lempi(url, type);
+                usedLempi = true;
             }
 
             if (isYoutube) {
                 const info = crearInfo(data, isAudio, isDocument);
-
                 let thumbnail = null;
 
                 try {
@@ -124,7 +125,7 @@ export default {
                         thumbnail = Buffer.from(await t.arrayBuffer());
                 } catch {}
 
-                await conn.reply(m.chat, info, m, {
+                infoMsg = await conn.reply(m.chat, info, m, {
                     thumbnail,
                     title: "DL-YOUTUBE",
                     description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
@@ -134,9 +135,17 @@ export default {
                 });
             }
 
+            if (infoMsg?.key) {
+                await conn.sendMessage(m.chat, {
+                    react: {
+                        text: usedLempi ? "🔥" : "✅",
+                        key: infoMsg.key
+                    }
+                });
+            }
+
             const seconds = parseDuration(data.duration);
             const sendDocument = isDocument || seconds > 1200;
-
             const buffer = await downloadMedia(data.dl);
 
             if (isAudio) {
@@ -315,8 +324,10 @@ async function downloadMedia(url) {
 
         } catch (e) {
             error = e;
+
             if (i < 3)
                 await new Promise(r => setTimeout(r, i * 3000));
+
         } finally {
             clearTimeout(timeout);
         }
