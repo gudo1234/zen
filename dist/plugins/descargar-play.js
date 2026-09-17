@@ -29,7 +29,7 @@ export default {
     run: async ({ conn, m, text, prefijo, cmd }) => {
         if (!text)
             return m.reply(
-                `✓ ¿Qué estás buscando?\n\n${m.e.warn} *Usa:*\n${prefijo + cmd} <canción o link>\n*Ej:* ${prefijo + cmd} diles`
+                `¿Qué estás buscando?\n\n${m.e.warn} *Usa:*\n${prefijo + cmd} <canción o link>\n*Ej:* ${prefijo + cmd} diles`
             );
 
         if (userRequests[m.sender])
@@ -71,7 +71,6 @@ export default {
 
             const isYoutube =
                 /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(url);
-
             if (!isYoutube) {
                 const r = (await ytSearch(text)).videos?.[0];
 
@@ -86,16 +85,29 @@ export default {
                     duration: r.timestamp || "Desconocida",
                     thumbnail: r.thumbnail,
                     format: type,
-                    quality: isAudio ? "256KBPS" : "720P"
+                    quality: isAudio ? "128K" : "720P"
                 };
+                try {
+                    const alya = await alyaCore(url, type, data);
+                    data = {
+                        ...data,
+                        ...alya
+                    };
+                } catch {
+                    data = await lempi(url, type);
+                    usedLempi = true;
+                }
 
                 const info = crearInfo(data, isAudio, isDocument);
                 let thumbnail = null;
 
                 try {
-                    const t = await fetch(data.thumbnail);
-                    if (t.ok)
-                        thumbnail = Buffer.from(await t.arrayBuffer());
+                    if (data.thumbnail) {
+                        const t = await fetch(data.thumbnail);
+
+                        if (t.ok)
+                            thumbnail = Buffer.from(await t.arrayBuffer());
+                    }
                 } catch {}
 
                 infoMsg = await conn.reply(m.chat, info, m, {
@@ -107,22 +119,39 @@ export default {
                     thumbnailUrl: "https://www.instagram.com/edi504_"
                 });
             }
-
-            try {
-                data = await alyaCore(url, type);
-            } catch {
-                data = await lempi(url, type);
-                usedLempi = true;
-            }
-
             if (isYoutube) {
+                let youtubeInfo = {};
+
+                try {
+                    const r = (await ytSearch(url)).videos?.[0];
+
+                    if (r) {
+                        youtubeInfo = {
+                            title: r.title,
+                            author: r.author?.name || "Desconocido",
+                            duration: r.timestamp || "Desconocida",
+                            thumbnail: r.thumbnail
+                        };
+                    }
+                } catch {}
+
+                try {
+                    data = await alyaCore(url, type, youtubeInfo);
+                } catch {
+                    data = await lempi(url, type);
+                    usedLempi = true;
+                }
+
                 const info = crearInfo(data, isAudio, isDocument);
                 let thumbnail = null;
 
                 try {
-                    const t = await fetch(data.thumbnail);
-                    if (t.ok)
-                        thumbnail = Buffer.from(await t.arrayBuffer());
+                    if (data.thumbnail) {
+                        const t = await fetch(data.thumbnail);
+
+                        if (t.ok)
+                            thumbnail = Buffer.from(await t.arrayBuffer());
+                    }
                 } catch {}
 
                 infoMsg = await conn.reply(m.chat, info, m, {
@@ -146,6 +175,7 @@ export default {
 
             const seconds = parseDuration(data.duration);
             const sendDocument = isDocument || seconds > 1200;
+
             const buffer = await downloadMedia(data.dl);
 
             if (isAudio) {
@@ -187,7 +217,9 @@ export default {
 
         } catch (e) {
             console.error("❌ Error en /play:", e);
+
             await m.react("❌");
+
             return m.reply(
                 `${m.e.warn} No se pudo procesar la descarga.\n\n> ${e.message || "Error desconocido."}`
             );
@@ -212,18 +244,22 @@ function crearInfo(data, isAudio, isDocument) {
             : "";
 
     return `╭──── • ────╮
-✦ *Título:* ${data.title}
-✦ *Autor:* ${data.author}
-✦ *Duración:* ${data.duration}
-✦ *Formato:* ${data.format.toUpperCase()}
-✦ *Calidad:* ${data.quality}
+✦ *Título:* ${data.title || "Desconocido"}
+✦ *Autor:* ${data.author || "Desconocido"}
+✦ *Duración:* ${data.duration || "Desconocida"}
+✦ *Formato:* ${(data.format || (isAudio ? "mp3" : "mp4")).toUpperCase()}
+✦ *Calidad:* ${data.quality || "Desconocida"}
 ⏳ *Preparando ${tipo}...*${aviso}
 ╰──── • ────╯`;
 }
 
-async function alyaCore(url, type) {
+async function alyaCore(url, type, fallbackInfo = {}) {
+    const endpoint = type === "mp3"
+        ? "fastytmp3"
+        : "ytmp4";
+
     const api =
-        `https://api.alyacore.xyz/dl/youtubeplayv2?query=${encodeURIComponent(url)}&type=${type}&key=oboe`;
+        `https://api.alyacore.xyz/dl/${endpoint}?url=${encodeURIComponent(url)}&key=oboe`;
 
     const json = await fetchJson(api);
 
@@ -231,15 +267,35 @@ async function alyaCore(url, type) {
         throw new Error("AlyaCore no devolvió una descarga válida.");
 
     const d = json.data;
-
     return {
-        title: d.title,
-        author: d.author,
-        duration: d.duration,
-        thumbnail: d.thumbnail,
-        format: d.format,
-        quality: d.quality,
-        fileName: d.fileName,
+        title: d.title || fallbackInfo.title || "Desconocido",
+
+        author:
+            d.author ||
+            fallbackInfo.author ||
+            "Desconocido",
+
+        duration:
+            d.duration ||
+            fallbackInfo.duration ||
+            "Desconocida",
+
+        thumbnail:
+            d.thumbnail ||
+            fallbackInfo.thumbnail ||
+            null,
+
+        format: type,
+
+        quality:
+            d.quality ||
+            fallbackInfo.quality ||
+            (type === "mp3" ? "128k" : "720p"),
+
+        fileName:
+            d.fileName ||
+            crearNombreArchivo(d.title || fallbackInfo.title, type),
+
         dl: d.dl
     };
 }
@@ -260,20 +316,25 @@ async function lempi(url, type) {
         author: json.canal,
         duration: json.duracion,
         thumbnail: json.miniatura,
-        format: d.extension.replace(".", ""),
+        format: d.extension?.replace(".", "") || type,
         quality: d.calidad,
         fileName: d.archivo,
         dl: d.url
     };
 }
-
 async function fetchJson(url) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const timeout = setTimeout(
+        () => controller.abort(),
+        30000
+    );
 
     try {
         const res = await fetch(url, {
-            headers: { "User-Agent": "Mozilla/5.0" },
+            headers: {
+                "User-Agent": "Mozilla/5.0"
+            },
             signal: controller.signal
         });
 
@@ -281,6 +342,14 @@ async function fetchJson(url) {
             throw new Error(`HTTP ${res.status}`);
 
         return await res.json();
+
+    } catch (e) {
+
+        if (e.name === "AbortError")
+            throw new Error("La API tardó demasiado en responder.");
+
+        throw e;
+
     } finally {
         clearTimeout(timeout);
     }
@@ -290,14 +359,20 @@ async function downloadMedia(url) {
     let error;
 
     for (let i = 1; i <= 3; i++) {
+
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 180000);
+
+        const timeout = setTimeout(
+            () => controller.abort(),
+            180000
+        );
 
         try {
             const res = await fetch(url, {
                 headers: {
                     "User-Agent": "Mozilla/5.0",
-                    "Accept": "audio/mpeg,video/mp4,application/octet-stream,*/*"
+                    "Accept":
+                        "audio/mpeg,video/mp4,application/octet-stream,*/*"
                 },
                 redirect: "follow",
                 signal: controller.signal
@@ -306,56 +381,94 @@ async function downloadMedia(url) {
             if (!res.ok)
                 throw new Error(`CDN HTTP ${res.status}`);
 
-            const buffer = Buffer.from(await res.arrayBuffer());
+            const buffer =
+                Buffer.from(await res.arrayBuffer());
 
             if (!buffer.length)
-                throw new Error("El CDN devolvió un archivo vacío.");
+                throw new Error(
+                    "El CDN devolvió un archivo vacío."
+                );
 
-            const start = buffer.subarray(0, 100).toString().toLowerCase();
+            const start =
+                buffer
+                    .subarray(0, 100)
+                    .toString()
+                    .toLowerCase();
 
             if (
                 start.includes("<html") ||
                 start.includes("<!doctype") ||
                 start.includes("access denied")
             )
-                throw new Error("El CDN devolvió una página en lugar del archivo.");
+                throw new Error(
+                    "El CDN devolvió una página en lugar del archivo."
+                );
 
             return buffer;
 
         } catch (e) {
             error = e;
 
+            if (e.name === "AbortError")
+                error = new Error(
+                    "El servidor de descarga tardó demasiado en responder."
+                );
+
             if (i < 3)
-                await new Promise(r => setTimeout(r, i * 3000));
+                await new Promise(
+                    r => setTimeout(r, i * 3000)
+                );
 
         } finally {
             clearTimeout(timeout);
         }
     }
 
-    throw error || new Error("No se pudo descargar el archivo.");
+    throw error ||
+        new Error("No se pudo descargar el archivo.");
 }
 
 function parseDuration(duration) {
-    const match = String(duration || "").match(
-        /(\d+)\s*\(\s*(\d+):(\d+)(?::(\d+))?\s*\)/
-    );
+    const match =
+        String(duration || "").match(
+            /(\d+)\s*\(\s*(\d+):(\d+)(?::(\d+))?\s*\)/
+        );
 
     if (match)
         return match[4]
-            ? Number(match[2]) * 3600 + Number(match[3]) * 60 + Number(match[4])
-            : Number(match[2]) * 60 + Number(match[3]);
+            ? Number(match[2]) * 3600 +
+              Number(match[3]) * 60 +
+              Number(match[4])
+            : Number(match[2]) * 60 +
+              Number(match[3]);
 
-    const p = String(duration || "").split(":").map(Number);
+    const p =
+        String(duration || "")
+            .split(":")
+            .map(Number);
 
     if (p.some(Number.isNaN))
         return 0;
 
     if (p.length === 3)
-        return p[0] * 3600 + p[1] * 60 + p[2];
+        return (
+            p[0] * 3600 +
+            p[1] * 60 +
+            p[2]
+        );
 
     if (p.length === 2)
         return p[0] * 60 + p[1];
 
     return p[0] || 0;
+}
+
+function crearNombreArchivo(title, type) {
+    const nombre =
+        String(title || "youtube")
+            .replace(/[\\/:*?"<>|]/g, "")
+            .trim()
+            .slice(0, 100);
+
+    return `${nombre || "youtube"}.${type === "mp3" ? "mp3" : "mp4"}`;
 }
