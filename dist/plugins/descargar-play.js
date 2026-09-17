@@ -71,15 +71,59 @@ export default {
                 throw new Error("Comando de descarga no válido.");
 
             let url = text.trim();
-            let result;
+            let result = null;
+            let info = null;
 
-            if (!/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(url)) {
+            const isYoutube =
+                /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(url);
+
+            if (!isYoutube) {
                 result = (await ytSearch(text)).videos?.[0];
 
                 if (!result)
                     throw new Error(`No encontré resultados para: ${text}`);
 
                 url = result.url;
+
+                const duration = result.timestamp || "Desconocida";
+                const seconds = parseDuration(duration);
+                const over20 = seconds > 1200;
+                const sendDocument = isDocument || over20;
+
+                const tipo = isAudio
+                    ? sendDocument ? "audio en documento" : "audio"
+                    : sendDocument ? "video en documento" : "video";
+
+                const aviso =
+                    !isDocument && over20
+                        ? "\n\n> ‣ Se enviará como documento por superar 20 minutos."
+                        : "";
+
+                info = `╭──── • ────╮
+✦ *Título:* ${result.title}
+✦ *Autor:* ${result.author?.name || "Desconocido"}
+✦ *Duración:* ${duration}
+✦ *Formato:* ${type.toUpperCase()}
+✦ *Calidad:* ${isAudio ? "256KBPS" : "720P"}
+⏳ *Preparando ${tipo}...*${aviso}
+╰──── • ────╯`;
+
+                let thumbnail = null;
+
+                try {
+                    const thumb = await fetch(result.thumbnail);
+                    if (thumb.ok)
+                        thumbnail = Buffer.from(await thumb.arrayBuffer());
+                } catch {}
+
+                await conn.reply(m.chat, info, m, {
+                    thumbnail,
+                    title: "DL-YOUTUBE",
+                    description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
+                    largeThumbnail: false,
+                    previewType: isAudio ? 1 : 2,
+                    thumbnailUrl: "https://www.instagram.com/edi504_"
+                });
             }
 
             const api =
@@ -104,17 +148,17 @@ export default {
             const over20 = seconds > 1200;
             const sendDocument = isDocument || over20;
 
-            const aviso =
-                !isDocument && over20
-                    ? "\n\n> ‣ Se enviará como documento por superar 20 minutos."
-                    : "";
-
-            const tipo =
-                isAudio
+            if (isYoutube) {
+                const tipo = isAudio
                     ? sendDocument ? "audio en documento" : "audio"
                     : sendDocument ? "video en documento" : "video";
 
-            const info = `╭──── • ────╮
+                const aviso =
+                    !isDocument && over20
+                        ? "\n\n> ‣ Se enviará como documento por superar 20 minutos."
+                        : "";
+
+                const info = `╭──── • ────╮
 ✦ *Título:* ${d.title}
 ✦ *Autor:* ${d.author}
 ✦ *Duración:* ${d.duration}
@@ -123,22 +167,23 @@ export default {
 ⏳ *Preparando ${tipo}...*${aviso}
 ╰──── • ────╯`;
 
-            let thumbnail = null;
+                let thumbnail = null;
 
-            try {
-                const thumb = await fetch(d.thumbnail);
-                if (thumb.ok)
-                    thumbnail = Buffer.from(await thumb.arrayBuffer());
-            } catch {}
+                try {
+                    const thumb = await fetch(d.thumbnail);
+                    if (thumb.ok)
+                        thumbnail = Buffer.from(await thumb.arrayBuffer());
+                } catch {}
 
-            await conn.reply(m.chat, info, m, {
-                thumbnail,
-                title: "DL-YOUTUBE",
-                description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
-                largeThumbnail: false,
-                previewType: isAudio ? 1 : 2,
-                thumbnailUrl: "https://www.instagram.com/edi504_"
-            });
+                await conn.reply(m.chat, info, m, {
+                    thumbnail,
+                    title: "DL-YOUTUBE",
+                    description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
+                    largeThumbnail: false,
+                    previewType: isAudio ? 1 : 2,
+                    thumbnailUrl: "https://www.instagram.com/edi504_"
+                });
+            }
 
             const buffer = await downloadMedia(d.dl);
 
