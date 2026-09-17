@@ -52,9 +52,46 @@ export default {
             const info = data.data;
 
             const title = info.title || "YouTube";
-            const fileName = info.fileName || `${sanitizeFileName(title)}.${type}`;
+            const author = info.author || "Desconocido";
+            const duration = info.duration || "Desconocida";
+            const thumbnailUrl = info.thumbnail || "";
             const downloadUrl = info.dl;
-            const thumbnail = info.thumbnail || "";
+            const fileName = info.fileName || `${sanitizeFileName(title)}.${type}`;
+
+            const previewType = isAudio ? 1 : 2;
+
+            const finalText = `╭───〔 🎵 YOUTUBE 〕───╮
+│
+│ ✦ *Título:* ${title}
+│ ✦ *Autor:* ${author}
+│ ✦ *Duración:* ${duration}
+│ ✦ *Formato:* ${info.format?.toUpperCase() || type.toUpperCase()}
+│ ✦ *Calidad:* ${info.quality || "Desconocida"}
+│
+│ ⏳ *Preparando ${tipoDescarga}...*
+│
+╰─────────────────────╯`;
+
+            let thumbnail = null;
+
+            if (thumbnailUrl) {
+                try {
+                    const thumbRes = await fetch(thumbnailUrl);
+
+                    if (thumbRes.ok) {
+                        thumbnail = Buffer.from(await thumbRes.arrayBuffer());
+                    }
+                } catch {}
+            }
+
+            await conn.reply(m.chat, finalText, m, {
+                thumbnail,
+                title: "DL-YOUTUBE",
+                description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
+                largeThumbnail: false,
+                previewType,
+                thumbnailUrl: "https://www.instagram.com/edi504_"
+            });
 
             if (isAudio) {
 
