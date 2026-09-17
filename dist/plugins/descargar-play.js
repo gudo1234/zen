@@ -2,8 +2,8 @@ import fetch from "node-fetch";
 
 const userRequests = {};
 
-const API_TIMEOUT = 30000;
-const API_RETRIES = 4;
+const API_TIMEOUT = 15000;
+const API_ATTEMPTS = 3;
 const CDN_TIMEOUT = 90000;
 const CDN_RETRIES = 2;
 
@@ -102,19 +102,26 @@ export default {
 
             if (!isAudio && !isVideo) {
                 await m.react("❌");
+
                 return m.reply(
                     `${m.e.warn} Comando de descarga no válido.`
                 );
             }
 
-            const type = isAudio ? "mp3" : "mp4";
+            const type = isAudio
+                ? "mp3"
+                : "mp4";
 
             const apiUrl =
                 `https://api.alyacore.xyz/dl/youtubeplayv2?query=${encodeURIComponent(text)}&type=${type}&key=oboe`;
 
-            const data = await requestAlyaCore(apiUrl);
+            const data =
+                await getAlyaResult(apiUrl);
 
-            if (!data?.status || !data?.data?.dl) {
+            if (
+                !data?.status ||
+                !data?.data?.dl
+            ) {
                 await m.react("❌");
 
                 return m.reply(
@@ -185,12 +192,16 @@ ${aviso}
             const previewType =
                 isAudio ? 1 : 2;
 
-            let thumbnail = null;
-
             const thumbnailPromise =
                 thumbnailUrl
                     ? fetchThumbnail(thumbnailUrl)
                     : Promise.resolve(null);
+
+            const thumbnail =
+                await Promise.race([
+                    thumbnailPromise,
+                    sleep(2500).then(() => null)
+                ]);
 
             await conn.reply(
                 m.chat,
@@ -205,31 +216,6 @@ ${aviso}
                     thumbnailUrl: "https://www.instagram.com/edi504_"
                 }
             );
-
-            thumbnail =
-                await thumbnailPromise;
-
-            if (thumbnail) {
-                try {
-                    await conn.sendMessage(
-                        m.chat,
-                        {
-                            text: `🖼️ *${title}*`,
-                            contextInfo: {
-                                externalAdReply: {
-                                    title: title,
-                                    body: `${author} • ${duration}`,
-                                    thumbnail,
-                                    sourceUrl: downloadUrl,
-                                    mediaType: 1,
-                                    renderLargerThumbnail: false
-                                }
-                            }
-                        },
-                        { quoted: m }
-                    );
-                } catch {}
-            }
 
             const sendDirect = async () => {
 
@@ -246,7 +232,9 @@ ${aviso}
                                 mimetype: "audio/mpeg",
                                 fileName
                             },
-                            { quoted: m }
+                            {
+                                quoted: m
+                            }
                         );
                     }
 
@@ -260,7 +248,9 @@ ${aviso}
                             fileName,
                             ptt: false
                         },
-                        { quoted: m }
+                        {
+                            quoted: m
+                        }
                     );
                 }
 
@@ -275,7 +265,9 @@ ${aviso}
                             mimetype: "video/mp4",
                             fileName
                         },
-                        { quoted: m }
+                        {
+                            quoted: m
+                        }
                     );
                 }
 
@@ -288,21 +280,23 @@ ${aviso}
                         mimetype: "video/mp4",
                         caption: `🔰 *${title}*`
                     },
-                    { quoted: m }
+                    {
+                        quoted: m
+                    }
                 );
             };
 
             try {
 
                 console.log(
-                    "🚀 Intentando envío directo:",
+                    "🚀 Enviando directamente:",
                     downloadUrl
                 );
 
                 await sendDirect();
 
                 console.log(
-                    "✅ Archivo enviado directamente"
+                    "✅ Enviado correctamente mediante URL"
                 );
 
                 await m.react("✅");
@@ -311,15 +305,14 @@ ${aviso}
 
             } catch (directError) {
 
-                console.error(
-                    "⚠️ Falló envío directo:",
+                console.log(
+                    "⚠️ Falló el envío directo:",
                     directError?.message || directError
                 );
             }
 
             console.log(
-                "⬇️ Usando descarga alternativa:",
-                downloadUrl
+                "⬇️ Activando descarga alternativa..."
             );
 
             const mediaBuffer =
@@ -328,14 +321,17 @@ ${aviso}
                     CDN_RETRIES
                 );
 
-            if (!mediaBuffer?.length) {
+            if (
+                !mediaBuffer ||
+                !mediaBuffer.length
+            ) {
                 throw new Error(
-                    "El servidor no devolvió el archivo."
+                    "El servidor no entregó el archivo."
                 );
             }
 
             console.log(
-                `✅ Buffer recibido: ${(mediaBuffer.length / 1024 / 1024).toFixed(2)} MB`
+                `📦 Archivo recibido: ${(mediaBuffer.length / 1024 / 1024).toFixed(2)} MB`
             );
 
             if (isAudio) {
@@ -349,7 +345,9 @@ ${aviso}
                             mimetype: "audio/mpeg",
                             fileName
                         },
-                        { quoted: m }
+                        {
+                            quoted: m
+                        }
                     );
 
                 } else {
@@ -362,7 +360,9 @@ ${aviso}
                             fileName,
                             ptt: false
                         },
-                        { quoted: m }
+                        {
+                            quoted: m
+                        }
                     );
                 }
 
@@ -377,7 +377,9 @@ ${aviso}
                             mimetype: "video/mp4",
                             fileName
                         },
-                        { quoted: m }
+                        {
+                            quoted: m
+                        }
                     );
 
                 } else {
@@ -386,9 +388,12 @@ ${aviso}
                         m.chat,
                         {
                             video: mediaBuffer,
+                            mimetype: "video/mp4",
                             caption: `🔰 *${title}*`
                         },
-                        { quoted: m }
+                        {
+                            quoted: m
+                        }
                     );
                 }
             }
@@ -405,8 +410,8 @@ ${aviso}
             await m.react("❌");
 
             return m.reply(
-                `${m.e.warn} No se pudo procesar la descarga.\n\n` +
-                `> El servidor de descarga no pudo entregar el archivo. Intenta nuevamente.`
+                `${m.e.warn} No se pudo completar la descarga.\n\n` +
+                `> El servidor no pudo entregar el archivo. Intenta nuevamente.`
             );
 
         } finally {
@@ -416,146 +421,171 @@ ${aviso}
     }
 };
 
-async function requestAlyaCore(url) {
+async function getAlyaResult(url) {
 
-    let lastError = null;
+    const controllers = [];
+    const requests = [];
 
-    for (let attempt = 1; attempt <= API_RETRIES; attempt++) {
+    for (
+        let i = 0;
+        i < API_ATTEMPTS;
+        i++
+    ) {
 
         const controller =
             new AbortController();
 
-        const timer =
-            setTimeout(() => {
-                controller.abort();
-            }, API_TIMEOUT);
+        controllers.push(controller);
 
-        try {
+        const delay =
+            i === 0
+                ? 0
+                : i === 1
+                    ? 900
+                    : 1800;
 
-            console.log(
-                `🔎 AlyaCore intento ${attempt}/${API_RETRIES}`
-            );
+        const request =
+            (async () => {
 
-            const response =
-                await fetch(url, {
-                    method: "GET",
-                    headers: {
-                        "User-Agent":
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
-                        "Accept":
-                            "application/json,text/plain,*/*",
-                        "Connection":
-                            "keep-alive"
-                    },
-                    signal: controller.signal
-                });
-
-            if (response.ok) {
-
-                const data =
-                    await response.json();
-
-                if (
-                    data?.status === true &&
-                    data?.data?.dl
-                ) {
-                    console.log(
-                        "✅ AlyaCore respondió correctamente"
-                    );
-
-                    return data;
+                if (delay) {
+                    await sleep(delay);
                 }
 
-                lastError =
-                    new Error(
-                        "Respuesta inválida de AlyaCore"
-                    );
-
-            } else {
-
-                lastError =
-                    new Error(
-                        `HTTP ${response.status}`
-                    );
+                if (controller.signal.aborted) {
+                    throw new Error("cancelled");
+                }
 
                 console.log(
-                    `⚠️ AlyaCore HTTP ${response.status}`
+                    `🔎 AlyaCore solicitud ${i + 1}/${API_ATTEMPTS}`
                 );
-            }
 
-        } catch (error) {
+                const timer =
+                    setTimeout(() => {
+                        controller.abort();
+                    }, API_TIMEOUT);
 
-            lastError = error;
+                try {
 
-            console.log(
-                `⚠️ AlyaCore intento ${attempt}:`,
-                error?.message || error
-            );
+                    const response =
+                        await fetch(url, {
+                            method: "GET",
+                            redirect: "follow",
+                            signal: controller.signal,
+                            headers: {
+                                "User-Agent":
+                                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+                                "Accept":
+                                    "application/json,text/plain,*/*",
+                                "Connection":
+                                    "keep-alive"
+                            }
+                        });
 
-        } finally {
+                    if (!response.ok) {
+                        throw new Error(
+                            `HTTP ${response.status}`
+                        );
+                    }
 
-            clearTimeout(timer);
-        }
+                    const data =
+                        await response.json();
 
-        if (attempt < API_RETRIES) {
+                    if (
+                        data?.status === true &&
+                        data?.data?.dl
+                    ) {
 
-            await sleep(
-                attempt === 1
-                    ? 300
-                    : 800
-            );
-        }
+                        console.log(
+                            `✅ AlyaCore respondió en solicitud ${i + 1}`
+                        );
+
+                        return data;
+                    }
+
+                    throw new Error(
+                        "Respuesta de AlyaCore sin enlace"
+                    );
+
+                } finally {
+
+                    clearTimeout(timer);
+                }
+            })();
+
+        requests.push(request);
     }
 
-    throw new Error(
-        `AlyaCore no respondió después de ${API_RETRIES} intentos`
-    );
+    try {
+
+        const result =
+            await Promise.any(requests);
+
+        for (const controller of controllers) {
+            try {
+                controller.abort();
+            } catch {}
+        }
+
+        return result;
+
+    } catch {
+
+        for (const controller of controllers) {
+            try {
+                controller.abort();
+            } catch {}
+        }
+
+        throw new Error(
+            "AlyaCore no pudo entregar un resultado válido."
+        );
+    }
 }
 
 async function fetchThumbnail(url) {
 
+    const controller =
+        new AbortController();
+
+    const timer =
+        setTimeout(() => {
+            controller.abort();
+        }, 5000);
+
     try {
 
-        const controller =
-            new AbortController();
+        const response =
+            await fetch(url, {
+                method: "GET",
+                signal: controller.signal,
+                headers: {
+                    "User-Agent":
+                        "Mozilla/5.0",
+                    "Accept":
+                        "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+                }
+            });
 
-        const timer =
-            setTimeout(() => {
-                controller.abort();
-            }, 8000);
-
-        try {
-
-            const response =
-                await fetch(url, {
-                    headers: {
-                        "User-Agent":
-                            "Mozilla/5.0"
-                    },
-                    signal: controller.signal
-                });
-
-            if (!response.ok) {
-                return null;
-            }
-
-            const buffer =
-                Buffer.from(
-                    await response.arrayBuffer()
-                );
-
-            return buffer.length
-                ? buffer
-                : null;
-
-        } finally {
-
-            clearTimeout(timer);
+        if (!response.ok) {
+            return null;
         }
+
+        const buffer =
+            Buffer.from(
+                await response.arrayBuffer()
+            );
+
+        return buffer.length
+            ? buffer
+            : null;
 
     } catch {
 
         return null;
+
+    } finally {
+
+        clearTimeout(timer);
     }
 }
 
@@ -583,7 +613,7 @@ async function downloadMedia(
         try {
 
             console.log(
-                `⬇️ CDN intento ${attempt}/${retries}`
+                `⬇️ CDN ${attempt}/${retries}: ${url}`
             );
 
             const response =
@@ -607,16 +637,6 @@ async function downloadMedia(
                 );
             }
 
-            const contentType =
-                response.headers.get(
-                    "content-type"
-                ) || "";
-
-            console.log(
-                "📦 CDN Content-Type:",
-                contentType
-            );
-
             const buffer =
                 Buffer.from(
                     await response.arrayBuffer()
@@ -624,25 +644,25 @@ async function downloadMedia(
 
             if (!buffer.length) {
                 throw new Error(
-                    "El CDN devolvió un archivo vacío."
+                    "Archivo vacío"
                 );
             }
 
-            const start =
+            const beginning =
                 buffer
                     .subarray(0, 512)
                     .toString("utf8")
                     .toLowerCase();
 
             if (
-                start.includes("<html") ||
-                start.includes("<!doctype") ||
-                start.includes("access denied") ||
-                start.includes("error 403") ||
-                start.includes("error 404")
+                beginning.includes("<html") ||
+                beginning.includes("<!doctype") ||
+                beginning.includes("access denied") ||
+                beginning.includes("error 403") ||
+                beginning.includes("error 404")
             ) {
                 throw new Error(
-                    "El CDN devolvió una respuesta inválida."
+                    "Respuesta inválida del CDN"
                 );
             }
 
@@ -652,8 +672,8 @@ async function downloadMedia(
 
             lastError = error;
 
-            console.error(
-                `⚠️ CDN intento ${attempt}/${retries}:`,
+            console.log(
+                `⚠️ CDN ${attempt}/${retries}:`,
                 error?.message || error
             );
 
@@ -687,7 +707,11 @@ function parseDuration(duration) {
             .split(":")
             .map(Number);
 
-    if (parts.some(Number.isNaN)) {
+    if (
+        parts.some(
+            Number.isNaN
+        )
+    ) {
         return 0;
     }
 
