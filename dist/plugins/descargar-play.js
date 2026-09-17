@@ -29,7 +29,7 @@ export default {
     run: async ({ conn, m, text, prefijo, cmd }) => {
         if (!text)
             return m.reply(
-                `🤔 ¿Qué estás buscando?\n\n${m.e.warn} *Usa:*\n${prefijo + cmd} <canción o link>\n*Ej:* ${prefijo + cmd} diles`
+                `¿Qué estás buscando?\n\n${m.e.warn} *Usa:*\n${prefijo + cmd} <canción o link>\n*Ej:* ${prefijo + cmd} diles`
             );
 
         if (userRequests[m.sender])
