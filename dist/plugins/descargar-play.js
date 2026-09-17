@@ -44,7 +44,6 @@ export default {
         await m.react("⏳");
 
         try {
-
             const normalAudio = [
                 "play",
                 "musica",
@@ -105,21 +104,22 @@ export default {
             const apiUrl =
                 `https://api.alyacore.xyz/dl/youtubeplayv2?query=${encodeURIComponent(text)}&type=${type}&key=oboe`;
 
-            console.log("🔎 Consultando AlyaCore:", apiUrl);
+            console.log("🔎 AlyaCore:", text);
 
             const response = await fetch(apiUrl, {
+                method: "GET",
                 headers: {
                     "User-Agent": "Mozilla/5.0"
                 }
             });
 
             if (!response.ok) {
-                throw new Error(`AlyaCore respondió HTTP ${response.status}`);
+                throw new Error(`AlyaCore HTTP ${response.status}`);
             }
 
             const data = await response.json();
 
-            console.log("🔎 AlyaCore:", data);
+            console.log("📥 Respuesta AlyaCore:", data);
 
             if (!data?.status || !data?.data?.dl) {
                 await m.react("❌");
@@ -171,39 +171,32 @@ export default {
 ${aviso}
 ╰──── • ────╯`;
 
+            const previewType = isAudio ? 1 : 2;
+
             let thumbnail = null;
 
             if (thumbnailUrl) {
-                try {
-
-                    const thumbRes = await fetch(thumbnailUrl, {
-                        headers: {
-                            "User-Agent": "Mozilla/5.0"
-                        }
-                    });
-
-                    if (thumbRes.ok) {
-                        thumbnail = Buffer.from(
-                            await thumbRes.arrayBuffer()
-                        );
+                fetch(thumbnailUrl, {
+                    headers: {
+                        "User-Agent": "Mozilla/5.0"
                     }
-
-                } catch (err) {
-                    console.log(
-                        "⚠️ No se pudo obtener la miniatura:",
-                        err.message
-                    );
-                }
+                })
+                    .then(async res => {
+                        if (res.ok) {
+                            thumbnail = Buffer.from(
+                                await res.arrayBuffer()
+                            );
+                        }
+                    })
+                    .catch(() => {});
             }
-
-            const previewType = isAudio ? 1 : 2;
 
             await conn.reply(
                 m.chat,
                 finalText,
                 m,
                 {
-                    thumbnail,
+                    thumbnail: null,
                     title: "DL-YOUTUBE",
                     description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
                     largeThumbnail: false,
@@ -212,12 +205,102 @@ ${aviso}
                 }
             );
 
-            console.log("⬇️ Descargando desde CDN:", downloadUrl);
+            console.log("🚀 Iniciando envío:", downloadUrl);
 
-            const mediaBuffer = await downloadMedia(
+            const sendDirect = async () => {
+                if (isAudio) {
+                    if (sendDocument) {
+                        return conn.sendMessage(
+                            m.chat,
+                            {
+                                document: {
+                                    url: downloadUrl
+                                },
+                                mimetype: "audio/mpeg",
+                                fileName
+                            },
+                            { quoted: m }
+                        );
+                    }
+
+                    return conn.sendMessage(
+                        m.chat,
+                        {
+                            audio: {
+                                url: downloadUrl
+                            },
+                            mimetype: "audio/mpeg",
+                            fileName,
+                            ptt: false
+                        },
+                        { quoted: m }
+                    );
+                }
+
+                if (sendDocument) {
+                    return conn.sendMessage(
+                        m.chat,
+                        {
+                            document: {
+                                url: downloadUrl
+                            },
+                            mimetype: "video/mp4",
+                            fileName
+                        },
+                        { quoted: m }
+                    );
+                }
+
+                return conn.sendMessage(
+                    m.chat,
+                    {
+                        video: {
+                            url: downloadUrl
+                        },
+                        mimetype: "video/mp4",
+                        caption: `🔰 *${title}*`
+                    },
+                    { quoted: m }
+                );
+            };
+
+            const bufferController = new AbortController();
+
+            const bufferPromise = downloadMedia(
                 downloadUrl,
-                3
+                2,
+                bufferController.signal
             );
+
+            try {
+                await Promise.race([
+                    sendDirect(),
+                    bufferPromise.then(() => {
+                        throw new Error("BUFFER_READY");
+                    })
+                ]);
+
+                bufferController.abort();
+
+                console.log("✅ Enviado directamente desde CDN");
+
+                await m.react("✅");
+
+                return;
+
+            } catch (directError) {
+
+                if (directError?.message === "BUFFER_READY") {
+                    console.log("⚡ CDN listo en Buffer, usando alternativa");
+                } else {
+                    console.log(
+                        "⚠️ Envío directo falló:",
+                        directError?.message || directError
+                    );
+                }
+            }
+
+            const mediaBuffer = await bufferPromise;
 
             if (!mediaBuffer || !mediaBuffer.length) {
                 throw new Error(
@@ -226,18 +309,8 @@ ${aviso}
             }
 
             console.log(
-                `✅ Archivo descargado: ${(mediaBuffer.length / 1024 / 1024).toFixed(2)} MB`
+                `📦 Buffer listo: ${(mediaBuffer.length / 1024 / 1024).toFixed(2)} MB`
             );
-            if (info.size) {
-                const diferencia =
-                    Math.abs(mediaBuffer.length - Number(info.size));
-
-                console.log(
-                    `📦 Tamaño API: ${Number(info.size)} bytes | ` +
-                    `Recibido: ${mediaBuffer.length} bytes | ` +
-                    `Diferencia: ${diferencia} bytes`
-                );
-            }
 
             if (isAudio) {
 
@@ -266,6 +339,7 @@ ${aviso}
                         { quoted: m }
                     );
                 }
+
             } else {
 
                 if (sendDocument) {
@@ -301,20 +375,29 @@ ${aviso}
             console.error("❌ Error en /play:", err);
 
             await m.react("❌");
+
+            const error = String(
+                err?.message || err || ""
+            );
+
             if (
-                err.message?.includes("Timeout") ||
-                err.message?.includes("socket") ||
-                err.message?.includes("aborted")
+                error.includes("Timeout") ||
+                error.includes("timeout") ||
+                error.includes("socket") ||
+                error.includes("aborted") ||
+                error.includes("ECONNRESET") ||
+                error.includes("ETIMEDOUT") ||
+                error.includes("EAI_AGAIN")
             ) {
                 return m.reply(
-                    `${m.e.warn} No se pudo descargar el archivo desde el servidor.\n\n` +
-                    `> El servidor tardó demasiado en responder. Se realizaron varios intentos automáticamente.`
+                    `${m.e.warn} El servidor de descarga tardó demasiado en responder.\n\n` +
+                    `> Intenta nuevamente en unos segundos.`
                 );
             }
 
             return m.reply(
                 `${m.e.warn} No se pudo procesar la descarga.\n\n` +
-                `> ${err.message || "Error desconocido."}`
+                `> ${error || "Error desconocido."}`
             );
 
         } finally {
@@ -323,78 +406,87 @@ ${aviso}
     }
 };
 
-async function downloadMedia(url, retries = 3) {
+async function downloadMedia(url, retries = 2, externalSignal = null) {
 
     let lastError = null;
 
     for (let attempt = 1; attempt <= retries; attempt++) {
 
+        if (externalSignal?.aborted) {
+            throw new Error("Descarga cancelada.");
+        }
+
         const controller = new AbortController();
+
+        const abortExternal = () => {
+            controller.abort();
+        };
+
+        if (externalSignal) {
+            if (externalSignal.aborted) {
+                throw new Error("Descarga cancelada.");
+            }
+
+            externalSignal.addEventListener(
+                "abort",
+                abortExternal,
+                { once: true }
+            );
+        }
 
         const timeout = setTimeout(() => {
             controller.abort();
-        }, 180000);
+        }, 90000);
 
         try {
 
             console.log(
-                `⬇️ Intento ${attempt}/${retries}: ${url}`
+                `⬇️ CDN intento ${attempt}/${retries}`
             );
 
             const response = await fetch(url, {
                 method: "GET",
-
+                redirect: "follow",
+                signal: controller.signal,
                 headers: {
                     "User-Agent":
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36",
-
                     "Accept":
-                        "audio/mpeg,video/mp4,application/octet-stream,*/*"
-                },
-
-                redirect: "follow",
-
-                signal: controller.signal
+                        "audio/mpeg,video/mp4,application/octet-stream,*/*",
+                    "Connection": "keep-alive"
+                }
             });
 
             if (!response.ok) {
                 throw new Error(
-                    `CDN respondió HTTP ${response.status}`
+                    `CDN HTTP ${response.status}`
                 );
             }
 
-            const contentLength =
-                response.headers.get("content-length");
-
-            if (contentLength) {
-                console.log(
-                    `📦 Content-Length: ${contentLength} bytes`
-                );
-            }
-            const arrayBuffer =
-                await response.arrayBuffer();
-
-            const buffer =
-                Buffer.from(arrayBuffer);
+            const buffer = Buffer.from(
+                await response.arrayBuffer()
+            );
 
             if (!buffer.length) {
                 throw new Error(
                     "El CDN devolvió un archivo vacío."
                 );
             }
-            const firstBytes =
-                buffer
-                    .subarray(0, 100)
-                    .toString("utf8")
-                    .toLowerCase();
+
+            const start = buffer
+                .subarray(0, 512)
+                .toString("utf8")
+                .toLowerCase();
 
             if (
-                firstBytes.includes("<html") ||
-                firstBytes.includes("<!doctype") ||
-                firstBytes.includes("access denied")
+                start.includes("<html") ||
+                start.includes("<!doctype") ||
+                start.includes("access denied") ||
+                start.includes("error 403") ||
+                start.includes("error 404")
             ) {
                 throw new Error(
-                    "El CDN devolvió una página HTML en lugar del archivo."
+                    "El CDN devolvió una respuesta inválida."
                 );
             }
 
@@ -404,25 +496,32 @@ async function downloadMedia(url, retries = 3) {
 
             lastError = error;
 
+            if (
+                error?.name === "AbortError" &&
+                externalSignal?.aborted
+            ) {
+                throw new Error("Descarga cancelada.");
+            }
+
             console.error(
-                `⚠️ Falló intento ${attempt}/${retries}:`,
-                error.message
+                `⚠️ CDN intento ${attempt} falló:`,
+                error?.message || error
             );
+
             if (attempt < retries) {
-
-                const wait =
-                    attempt * 3000;
-
-                console.log(
-                    `🔄 Reintentando en ${wait / 1000}s...`
-                );
-
-                await sleep(wait);
+                await sleep(1000);
             }
 
         } finally {
 
             clearTimeout(timeout);
+
+            if (externalSignal) {
+                externalSignal.removeEventListener(
+                    "abort",
+                    abortExternal
+                );
+            }
         }
     }
 
@@ -431,9 +530,7 @@ async function downloadMedia(url, retries = 3) {
 }
 
 function sleep(ms) {
-    return new Promise(resolve =>
-        setTimeout(resolve, ms)
-    );
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function parseDuration(duration) {
@@ -449,12 +546,7 @@ function parseDuration(duration) {
         return 0;
 
     if (parts.length === 3) {
-
-        const [
-            hours,
-            minutes,
-            seconds
-        ] = parts;
+        const [hours, minutes, seconds] = parts;
 
         return (
             hours * 3600 +
@@ -464,11 +556,7 @@ function parseDuration(duration) {
     }
 
     if (parts.length === 2) {
-
-        const [
-            minutes,
-            seconds
-        ] = parts;
+        const [minutes, seconds] = parts;
 
         return (
             minutes * 60 +
