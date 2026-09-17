@@ -42,24 +42,18 @@ export default {
 
         try {
             const audio = [
-                "play", "musica", "audio", "yta",
-                "mp3", "ytmp3", "playaudio",
-                "play3", "playdoc", "ytadoc",
-                "mp3doc", "ytmp3doc"
+                "play", "musica", "audio", "yta", "mp3", "ytmp3", "playaudio",
+                "play3", "playdoc", "ytadoc", "mp3doc", "ytmp3doc"
             ];
 
             const video = [
-                "play2", "video", "ytv", "mp4",
-                "ytmp4", "playvid",
-                "play4", "playdoc2", "ytvdoc",
-                "mp4doc", "ytmp4doc"
+                "play2", "video", "ytv", "mp4", "ytmp4", "playvid",
+                "play4", "playdoc2", "ytvdoc", "mp4doc", "ytmp4doc"
             ];
 
             const documents = [
-                "play3", "playdoc", "ytadoc",
-                "mp3doc", "ytmp3doc",
-                "play4", "playdoc2", "ytvdoc",
-                "mp4doc", "ytmp4doc"
+                "play3", "playdoc", "ytadoc", "mp3doc", "ytmp3doc",
+                "play4", "playdoc2", "ytvdoc", "mp4doc", "ytmp4doc"
             ];
 
             const isAudio = audio.includes(cmd);
@@ -77,72 +71,71 @@ export default {
                 /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(url);
 
             if (!isYoutube) {
-                const result = (await ytSearch(text)).videos?.[0];
+                const r = (await ytSearch(text)).videos?.[0];
 
-                if (!result)
+                if (!r)
                     throw new Error(`No encontré resultados para: ${text}`);
 
-                url = result.url;
+                url = r.url;
 
                 data = {
-                    title: result.title,
-                    author: result.author?.name || "Desconocido",
-                    duration: result.timestamp || "Desconocida",
-                    thumbnail: result.thumbnail,
+                    title: r.title,
+                    author: r.author?.name || "Desconocido",
+                    duration: r.timestamp || "Desconocida",
+                    thumbnail: r.thumbnail,
                     format: type,
                     quality: isAudio ? "256KBPS" : "720P"
                 };
+
+                const info = crearInfo(data, isAudio, isDocument);
+
+                let thumbnail = null;
+
+                try {
+                    const t = await fetch(data.thumbnail);
+                    if (t.ok)
+                        thumbnail = Buffer.from(await t.arrayBuffer());
+                } catch {}
+
+                await conn.reply(m.chat, info, m, {
+                    thumbnail,
+                    title: "DL-YOUTUBE",
+                    description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
+                    largeThumbnail: false,
+                    previewType: isAudio ? 1 : 2,
+                    thumbnailUrl: "https://www.instagram.com/edi504_"
+                });
             }
 
-            if (isYoutube || !data?.dl) {
+            try {
+                data = await alyaCore(url, type);
+            } catch {
+                data = await lempi(url, type);
+            }
+
+            if (isYoutube) {
+                const info = crearInfo(data, isAudio, isDocument);
+
+                let thumbnail = null;
+
                 try {
-                    data = await alyaCore(url, type);
-                } catch {
-                    data = await lempi(url, type);
-                }
+                    const t = await fetch(data.thumbnail);
+                    if (t.ok)
+                        thumbnail = Buffer.from(await t.arrayBuffer());
+                } catch {}
+
+                await conn.reply(m.chat, info, m, {
+                    thumbnail,
+                    title: "DL-YOUTUBE",
+                    description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
+                    largeThumbnail: false,
+                    previewType: isAudio ? 1 : 2,
+                    thumbnailUrl: "https://www.instagram.com/edi504_"
+                });
             }
 
             const seconds = parseDuration(data.duration);
-            const over20 = seconds > 1200;
-            const sendDocument = isDocument || over20;
-
-            const tipo = isAudio
-                ? sendDocument ? "audio en documento" : "audio"
-                : sendDocument ? "video en documento" : "video";
-
-            const aviso =
-                !isDocument && over20
-                    ? "\n\n> ‣ Se enviará como documento por superar 20 minutos."
-                    : "";
-
-            const info = `╭──── • ────╮
-✦ *Título:* ${data.title}
-✦ *Autor:* ${data.author}
-✦ *Duración:* ${data.duration}
-✦ *Formato:* ${data.format.toUpperCase()}
-✦ *Calidad:* ${data.quality}
-⏳ *Preparando ${tipo}...*${aviso}
-╰──── • ────╯`;
-
-            let thumbnail = null;
-
-            try {
-                const thumb = await fetch(data.thumbnail);
-                if (thumb.ok)
-                    thumbnail = Buffer.from(await thumb.arrayBuffer());
-            } catch {}
-
-            await conn.reply(m.chat, info, m, {
-                thumbnail,
-                title: "DL-YOUTUBE",
-                description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
-                largeThumbnail: false,
-                previewType: isAudio ? 1 : 2,
-                thumbnailUrl: "https://www.instagram.com/edi504_"
-            });
-
-            if (!data.dl)
-                throw new Error("La API no devolvió un enlace de descarga.");
+            const sendDocument = isDocument || seconds > 1200;
 
             const buffer = await downloadMedia(data.dl);
 
@@ -194,6 +187,30 @@ export default {
         }
     }
 };
+
+function crearInfo(data, isAudio, isDocument) {
+    const seconds = parseDuration(data.duration);
+    const over20 = seconds > 1200;
+    const sendDocument = isDocument || over20;
+
+    const tipo = isAudio
+        ? sendDocument ? "audio en documento" : "audio"
+        : sendDocument ? "video en documento" : "video";
+
+    const aviso =
+        !isDocument && over20
+            ? "\n\n> ‣ Se enviará como documento por superar 20 minutos."
+            : "";
+
+    return `╭──── • ────╮
+✦ *Título:* ${data.title}
+✦ *Autor:* ${data.author}
+✦ *Duración:* ${data.duration}
+✦ *Formato:* ${data.format.toUpperCase()}
+✦ *Calidad:* ${data.quality}
+⏳ *Preparando ${tipo}...*${aviso}
+╰──── • ────╯`;
+}
 
 async function alyaCore(url, type) {
     const api =
@@ -313,11 +330,10 @@ function parseDuration(duration) {
         /(\d+)\s*\(\s*(\d+):(\d+)(?::(\d+))?\s*\)/
     );
 
-    if (match) {
+    if (match)
         return match[4]
             ? Number(match[2]) * 3600 + Number(match[3]) * 60 + Number(match[4])
             : Number(match[2]) * 60 + Number(match[3]);
-    }
 
     const p = String(duration || "").split(":").map(Number);
 
