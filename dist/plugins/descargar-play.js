@@ -129,31 +129,14 @@ export default {
             const fileName =
                 info.fileName ||
                 `${sanitizeFileName(title)}.${type}`;
-
-            /*
-             * Calcular duración
-             */
             const durationSeconds = parseDuration(duration);
 
-            /*
-             * Si el usuario pidió un documento,
-             * siempre se mantiene como documento.
-             *
-             * Si pidió audio/video normal y supera
-             * los 20 minutos, se convierte automáticamente
-             * en documento.
-             */
             const over20Minutes = durationSeconds > 1200;
 
             const sendDocument =
                 isUserDocument ||
                 (!isUserDocument && over20Minutes);
 
-            /*
-             * El aviso SOLO aparece cuando:
-             * - No pidió documento
-             * - La duración supera 20 minutos
-             */
             const aviso =
                 !isUserDocument && over20Minutes
                     ? `\n\n> ‣ Se enviará como documento por superar 20 minutos.`
@@ -167,21 +150,15 @@ export default {
                     ? "video en documento"
                     : "video";
 
-            /*
-             * Información para la vista previa
-             */
-            const finalText = `╭───〔 🎵 YOUTUBE 〕───╮
-│
-│ ✦ *Título:* ${title}
-│ ✦ *Autor:* ${author}
-│ ✦ *Duración:* ${duration}
-│ ✦ *Formato:* ${(info.format || type).toUpperCase()}
-│ ✦ *Calidad:* ${info.quality || "Desconocida"}
-│
-│ ⏳ *Preparando ${tipoDescarga}...*
+            const finalText = `╭──── • ────╮
+✦ *Título:* ${title}
+✦ *Autor:* ${author}
+✦ *Duración:* ${duration}
+✦ *Formato:* ${(info.format || type).toUpperCase()}
+✦ *Calidad:* ${info.quality || "Desconocida"}
+⏳ *Preparando ${tipoDescarga}...*
 ${aviso}
-│
-╰──────────╯`;
+╰──── • ────╯`;
 
             let thumbnail = null;
 
