@@ -179,7 +179,8 @@ export default {
                         ? {
                             document: buffer,
                             mimetype: "audio/mpeg",
-                            fileName: data.fileName
+                            fileName: data.fileName,
+                            contextInfo: {}
                         }
                         : {
                             audio: buffer,
@@ -197,7 +198,8 @@ export default {
                         ? {
                             document: buffer,
                             mimetype: "video/mp4",
-                            fileName: data.fileName
+                            fileName: data.fileName,
+                            contextInfo: {}
                         }
                         : {
                             video: buffer,
