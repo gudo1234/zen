@@ -32,6 +32,7 @@ export default {
             );
 
         userRequests[m.sender] = true;
+
         await m.react("⏳");
 
         try {
@@ -59,63 +60,14 @@ export default {
                 throw new Error("Comando de descarga no válido.");
 
             let url = text.trim();
-            let data;
+            let youtubeInfo;
             let infoMsg = null;
             let usedLempi = false;
 
             const isYoutube =
                 /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\//i.test(url);
-            if (!isYoutube) {
-                const r = (await ytSearch(text)).videos?.[0];
 
-                if (!r)
-                    throw new Error(`No encontré resultados para: ${text}`);
-
-                url = r.url;
-
-                data = {
-                    title: r.title,
-                    author: r.author?.name || "Desconocido",
-                    duration: r.timestamp || "Desconocida",
-                    thumbnail: r.thumbnail,
-                    format: type,
-                    quality: isAudio ? "128K" : "720P"
-                };
-                try {
-                    const alya = await alyaCore(url, type, data);
-                    data = {
-                        ...data,
-                        ...alya
-                    };
-                } catch {
-                    data = await lempi(url, type);
-                    usedLempi = true;
-                }
-
-                const info = crearInfo(data, isAudio, isDocument);
-                let thumbnail = null;
-
-                try {
-                    if (data.thumbnail) {
-                        const t = await fetch(data.thumbnail);
-
-                        if (t.ok)
-                            thumbnail = Buffer.from(await t.arrayBuffer());
-                    }
-                } catch {}
-
-                infoMsg = await conn.reply(m.chat, info, m, {
-                    thumbnail,
-                    title: "DL-YOUTUBE",
-                    description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
-                    largeThumbnail: false,
-                    previewType: isAudio ? 1 : 2,
-                    thumbnailUrl: "https://www.instagram.com/edi504_"
-                });
-            }
             if (isYoutube) {
-                let youtubeInfo = {};
-
                 try {
                     const r = (await ytSearch(url)).videos?.[0];
 
@@ -124,53 +76,116 @@ export default {
                             title: r.title,
                             author: r.author?.name || "Desconocido",
                             duration: r.timestamp || "Desconocida",
-                            thumbnail: r.thumbnail
+                            thumbnail: r.thumbnail,
+                            format: type,
+                            quality: isAudio ? "128K" : "720P"
                         };
                     }
                 } catch {}
 
-                try {
-                    data = await alyaCore(url, type, youtubeInfo);
-                } catch {
-                    data = await lempi(url, type);
-                    usedLempi = true;
+                if (!youtubeInfo) {
+                    youtubeInfo = {
+                        title: "YouTube",
+                        author: "Desconocido",
+                        duration: "Desconocida",
+                        thumbnail: null,
+                        format: type,
+                        quality: isAudio ? "128K" : "720P"
+                    };
                 }
+            } else {
+                const r = (await ytSearch(text)).videos?.[0];
 
-                const info = crearInfo(data, isAudio, isDocument);
-                let thumbnail = null;
+                if (!r)
+                    throw new Error(`No encontré resultados para: ${text}`);
 
-                try {
-                    if (data.thumbnail) {
-                        const t = await fetch(data.thumbnail);
+                url = r.url;
 
-                        if (t.ok)
-                            thumbnail = Buffer.from(await t.arrayBuffer());
-                    }
-                } catch {}
+                youtubeInfo = {
+                    title: r.title,
+                    author: r.author?.name || "Desconocido",
+                    duration: r.timestamp || "Desconocida",
+                    thumbnail: r.thumbnail,
+                    format: type,
+                    quality: isAudio ? "128K" : "720P"
+                };
+            }
 
-                infoMsg = await conn.reply(m.chat, info, m, {
+            const info = crearInfo(
+                youtubeInfo,
+                isAudio,
+                isDocument
+            );
+
+            let thumbnail = null;
+
+            try {
+                if (youtubeInfo.thumbnail) {
+                    const t = await fetch(youtubeInfo.thumbnail);
+
+                    if (t.ok)
+                        thumbnail = Buffer.from(await t.arrayBuffer());
+                }
+            } catch {}
+
+            infoMsg = await conn.reply(
+                m.chat,
+                info,
+                m,
+                {
                     thumbnail,
                     title: "DL-YOUTUBE",
                     description: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
                     largeThumbnail: false,
                     previewType: isAudio ? 1 : 2,
                     thumbnailUrl: "https://www.instagram.com/edi504_"
-                });
+                }
+            );
+
+            let data;
+
+            try {
+                data = await alyaCore(
+                    url,
+                    type,
+                    youtubeInfo
+                );
+            } catch (alyaError) {
+                try {
+                    data = await lempi(
+                        url,
+                        type
+                    );
+
+                    usedLempi = true;
+
+                } catch (lempiError) {
+                    throw new Error(
+                        `AlyaCore: ${alyaError.message}\nLempi: ${lempiError.message}`
+                    );
+                }
             }
 
             if (infoMsg?.key) {
-                await conn.sendMessage(m.chat, {
-                    react: {
-                        text: usedLempi ? "🔥" : "✅",
-                        key: infoMsg.key
+                await conn.sendMessage(
+                    m.chat,
+                    {
+                        react: {
+                            text: usedLempi ? "🔥" : "✅",
+                            key: infoMsg.key
+                        }
                     }
-                });
+                );
             }
 
             const seconds = parseDuration(data.duration);
-            const sendDocument = isDocument || seconds > 1200;
 
-            const buffer = await downloadMedia(data.dl);
+            const sendDocument =
+                isDocument ||
+                seconds > 1200;
+
+            const buffer =
+                await downloadMedia(data.dl);
 
             if (isAudio) {
                 await conn.sendMessage(
@@ -221,6 +236,7 @@ export default {
             return m.reply(
                 `${m.e.warn} No se pudo procesar la descarga.\n\n> ${e.message || "Error desconocido."}`
             );
+
         } finally {
             delete userRequests[m.sender];
         }
@@ -233,8 +249,12 @@ function crearInfo(data, isAudio, isDocument) {
     const sendDocument = isDocument || over20;
 
     const tipo = isAudio
-        ? sendDocument ? "audio en documento" : "audio"
-        : sendDocument ? "video en documento" : "video";
+        ? sendDocument
+            ? "audio en documento"
+            : "audio"
+        : sendDocument
+            ? "video en documento"
+            : "video";
 
     const aviso =
         !isDocument && over20
@@ -252,9 +272,10 @@ function crearInfo(data, isAudio, isDocument) {
 }
 
 async function alyaCore(url, type, fallbackInfo = {}) {
-    const endpoint = type === "mp3"
-        ? "fastytmp3"
-        : "ytmp4";
+    const endpoint =
+        type === "mp3"
+            ? "fastytmp3"
+            : "ytmp4";
 
     const api =
         `https://api.alyacore.xyz/dl/${endpoint}?url=${encodeURIComponent(url)}&key=oboe`;
@@ -262,11 +283,17 @@ async function alyaCore(url, type, fallbackInfo = {}) {
     const json = await fetchJson(api);
 
     if (!json?.status || !json?.data?.dl)
-        throw new Error("AlyaCore no devolvió una descarga válida.");
+        throw new Error(
+            "AlyaCore no devolvió una descarga válida."
+        );
 
     const d = json.data;
+
     return {
-        title: d.title || fallbackInfo.title || "Desconocido",
+        title:
+            d.title ||
+            fallbackInfo.title ||
+            "Desconocido",
 
         author:
             d.author ||
@@ -292,7 +319,11 @@ async function alyaCore(url, type, fallbackInfo = {}) {
 
         fileName:
             d.fileName ||
-            crearNombreArchivo(d.title || fallbackInfo.title, type),
+            crearNombreArchivo(
+                d.title ||
+                fallbackInfo.title,
+                type
+            ),
 
         dl: d.dl
     };
@@ -305,46 +336,72 @@ async function lempi(url, type) {
     const json = await fetchJson(api);
 
     if (!json?.status || !json?.datos?.url)
-        throw new Error("Lempi no devolvió una descarga válida.");
+        throw new Error(
+            "Lempi no devolvió una descarga válida."
+        );
 
     const d = json.datos;
 
     return {
-        title: json.titulo,
-        author: json.canal,
-        duration: json.duracion,
-        thumbnail: json.miniatura,
-        format: d.extension?.replace(".", "") || type,
-        quality: d.calidad,
-        fileName: d.archivo,
-        dl: d.url
+        title:
+            json.titulo,
+
+        author:
+            json.canal,
+
+        duration:
+            json.duracion,
+
+        thumbnail:
+            json.miniatura,
+
+        format:
+            d.extension?.replace(".", "") ||
+            type,
+
+        quality:
+            d.calidad,
+
+        fileName:
+            d.archivo,
+
+        dl:
+            d.url
     };
 }
-async function fetchJson(url) {
-    const controller = new AbortController();
 
-    const timeout = setTimeout(
-        () => controller.abort(),
-        30000
-    );
+async function fetchJson(url) {
+    const controller =
+        new AbortController();
+
+    const timeout =
+        setTimeout(
+            () => controller.abort(),
+            30000
+        );
 
     try {
-        const res = await fetch(url, {
-            headers: {
-                "User-Agent": "Mozilla/5.0"
-            },
-            signal: controller.signal
-        });
+        const res =
+            await fetch(url, {
+                headers: {
+                    "User-Agent": "Mozilla/5.0"
+                },
+                signal: controller.signal
+            });
 
         if (!res.ok)
-            throw new Error(`HTTP ${res.status}`);
+            throw new Error(
+                `HTTP ${res.status}`
+            );
 
         return await res.json();
 
     } catch (e) {
 
         if (e.name === "AbortError")
-            throw new Error("La API tardó demasiado en responder.");
+            throw new Error(
+                "La API tardó demasiado en responder."
+            );
 
         throw e;
 
@@ -357,30 +414,36 @@ async function downloadMedia(url) {
     let error;
 
     for (let i = 1; i <= 3; i++) {
+        const controller =
+            new AbortController();
 
-        const controller = new AbortController();
-
-        const timeout = setTimeout(
-            () => controller.abort(),
-            180000
-        );
+        const timeout =
+            setTimeout(
+                () => controller.abort(),
+                180000
+            );
 
         try {
-            const res = await fetch(url, {
-                headers: {
-                    "User-Agent": "Mozilla/5.0",
-                    "Accept":
-                        "audio/mpeg,video/mp4,application/octet-stream,*/*"
-                },
-                redirect: "follow",
-                signal: controller.signal
-            });
+            const res =
+                await fetch(url, {
+                    headers: {
+                        "User-Agent": "Mozilla/5.0",
+                        "Accept":
+                            "audio/mpeg,video/mp4,application/octet-stream,*/*"
+                    },
+                    redirect: "follow",
+                    signal: controller.signal
+                });
 
             if (!res.ok)
-                throw new Error(`CDN HTTP ${res.status}`);
+                throw new Error(
+                    `CDN HTTP ${res.status}`
+                );
 
             const buffer =
-                Buffer.from(await res.arrayBuffer());
+                Buffer.from(
+                    await res.arrayBuffer()
+                );
 
             if (!buffer.length)
                 throw new Error(
@@ -423,7 +486,9 @@ async function downloadMedia(url) {
     }
 
     throw error ||
-        new Error("No se pudo descargar el archivo.");
+        new Error(
+            "No se pudo descargar el archivo."
+        );
 }
 
 function parseDuration(duration) {
@@ -456,7 +521,10 @@ function parseDuration(duration) {
         );
 
     if (p.length === 2)
-        return p[0] * 60 + p[1];
+        return (
+            p[0] * 60 +
+            p[1]
+        );
 
     return p[0] || 0;
 }
@@ -464,9 +532,14 @@ function parseDuration(duration) {
 function crearNombreArchivo(title, type) {
     const nombre =
         String(title || "youtube")
-            .replace(/[\\/:*?"<>|]/g, "")
+            .replace(
+                /[\\/:*?"<>|]/g,
+                ""
+            )
             .trim()
             .slice(0, 100);
 
-    return `${nombre || "youtube"}.${type === "mp3" ? "mp3" : "mp4"}`;
+    return `${
+        nombre || "youtube"
+    }.${type === "mp3" ? "mp3" : "mp4"}`;
 }
