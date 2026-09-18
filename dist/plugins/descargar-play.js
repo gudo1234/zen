@@ -185,7 +185,8 @@ export default {
                             audio: buffer,
                             mimetype: "audio/mpeg",
                             fileName: data.fileName,
-                            ptt: false
+                            ptt: false,
+                            contextInfo: {}
                         },
                     { quoted: m }
                 );
