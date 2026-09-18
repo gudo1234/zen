@@ -648,7 +648,7 @@ async function isAutoresponderActive(chatId) {
         return res.rows[0]?.autoresponder !== false;
     }
     catch (e) {
-        return true;
+        return false;
     }
 }
 export default {
