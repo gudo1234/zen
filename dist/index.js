@@ -1,6 +1,9 @@
 // @ts-nocheck
 //import baileys from "@whiskeysockets/baileys"
 //const { makeWASocket, fetchLatestBaileysVersion } = baileys
+process.env.TMPDIR = '/home/container/tmp';
+process.env.TMP = '/home/container/tmp';
+process.env.TEMP = '/home/container/tmp';
 import { makeWASocket, fetchLatestBaileysVersion, DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
 import 'dotenv/config';
 import P from "pino";
