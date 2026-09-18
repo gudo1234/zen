@@ -645,10 +645,10 @@ function getCommandsInfo() {
 async function isAutoresponderActive(chatId) {
     try {
         const res = await db.query("SELECT autoresponder FROM chats WHERE group_id = $1 LIMIT 1", [chatId]);
-        return res.rows[0]?.autoresponder !== true;
+        return res.rows[0]?.autoresponder !== false;
     }
     catch (e) {
-        return false;
+        return true;
     }
 }
 export default {
