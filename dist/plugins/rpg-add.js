@@ -2,7 +2,13 @@ import { db } from "../lib/db.js";
 const cleanJid = (jid = '') => String(jid || '').replace(/:\d+/, '');
 const onlyNum = (v = '') => String(v || '').replace(/[^0-9]/g, '');
 export default {
-    name: ["addlimit", "removelimit", "addexp", "removexp", "añadirdiamantes", "dardiamantes", "quitardiamantes", "sacardiamantes", "añadirxp", "addxp", "quitarxp", "sacarexp", "resetdiamantes", "resetexp"],
+    name: [
+        "addlimit", "removelimit", "addexp", "removexp",
+        "añadirdiamantes", "dardiamantes", "quitardiamantes", "sacardiamantes",
+        "añadirxp", "addxp", "quitarxp", "sacarexp",
+        "resetdiamantes", "resetexp",
+        "resetbanc", "quitarbanc", "addbanc", "añadirbanc"
+    ],
     help: ["addlimit", "removelimit", "addxp", "quitarxp"],
     tags: ["owner"],
     desc: "Agrega, quita o reinicia diamantes/exp a un usuario",
@@ -13,7 +19,7 @@ export default {
         let cantidad = 0;
         let userInput = "";
         let isReset = false;
-        if (/resetdiamantes|resetexp/i.test(cmd)) {
+        if (/resetdiamantes|resetexp|resetbanco/i.test(cmd)) {
             isReset = true;
         }
         // Detectar usuario
@@ -206,6 +212,31 @@ export default {
                 resultado = await db.query(`UPDATE usuarios SET exp = 0 WHERE lid = $1 RETURNING exp`, [lid]);
                 action = "✨ EXP REINICIADO";
                 valueName = "exp";
+                resetText = " (a 0)";
+            }
+            // BANCO
+            if (/addbanc|añadirbanc/i.test(cmd)) {
+                resultado = await db.query(`UPDATE usuarios SET banco = banco + $1 WHERE lid = $2 RETURNING banco`, [cantidad, lid]);
+                action = "🏦 BANCO AGREGADO";
+                valueName = "banco";
+            }
+            if (/quitarbanc|removerbanc/i.test(cmd)) {
+                if (isReset) {
+                    resultado = await db.query(`UPDATE usuarios SET banco = 0 WHERE lid = $1 RETURNING banco`, [lid]);
+                    action = "🏦 BANCO REINICIADO";
+                    valueName = "banco";
+                    resetText = " (a 0)";
+                }
+                else {
+                    resultado = await db.query(`UPDATE usuarios SET banco = GREATEST(0, banco - $1) WHERE lid = $2 RETURNING banco`, [cantidad, lid]);
+                    action = "🏦 BANCO QUITADO";
+                    valueName = "banco";
+                }
+            }
+            if (/resetbanc/i.test(cmd)) {
+                resultado = await db.query(`UPDATE usuarios SET banco = 0 WHERE lid = $1 RETURNING banco`, [lid]);
+                action = "🏦 BANCO REINICIADO";
+                valueName = "banco";
                 resetText = " (a 0)";
             }
             if (resultado) {

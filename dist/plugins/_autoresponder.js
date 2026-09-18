@@ -2,7 +2,7 @@
 import fetch from "node-fetch";
 import { db, getPrefix } from '../lib/db.js';
 import { getPlugins } from "../lib/plugins.js";
-//import { isSpam, handleSpamAction } from '../lib/anti-spam.js';
+//import { isSpam, getSpamData, handleSpamAction } from '../lib/anti-spam.js'
 import fs from 'fs';
 import path from 'path';
 import axios from "axios";
@@ -692,12 +692,11 @@ export default {
             }
         }
         // ===== ANTI-SPAM =====
-        /*if (isSpam(m.sender, lowerTexto)) {
-            const isAdmin = false; // Podrías verificar si es admin
-            const handled = await handleSpamAction(conn, m, m.sender, lowerTexto, chatId, isAdmin);
-            if (handled)
-                return; // Si se manejó la acción, no procesar el audio
-        }*/
+        /* if (isSpam(m.sender, lowerTexto)) {
+           const isAdmin = false // Podrías verificar si es admin
+           const handled = await handleSpamAction(conn, m, m.sender, lowerTexto, chatId, isAdmin)
+           if (handled) return // Si se manejó la acción, no procesar el audio
+         }*/
         const botIds = [conn.user?.id, conn.user?.lid].filter(Boolean).map(j => j.split("@")[0].split(":")[0]);
         const mentioned = [...(m.mentionedJid || []), m.msg?.contextInfo?.participant, m.msg?.contextInfo?.remoteJid].filter(Boolean);
         const mention = mentioned.some(j => {

@@ -1,7 +1,7 @@
 import { db } from '../lib/db.js';
 import fs from 'fs';
 import path from 'path';
-import { isSpam, handleSpamAction } from '../lib/anti-spam.js';
+//import { isSpam, getSpamData, handleSpamAction } from '../lib/anti-spam.js'
 const audiosPath = path.resolve('./src/audios.json');
 function getAudios() {
     try {
@@ -47,12 +47,11 @@ export default {
             const localAudios = await getLocalAudios(chatId);
             const sources = [localAudios, audios.global].filter(Boolean);
             // ===== ANTI-SPAM =====
-            if (isSpam(m.sender, lowerTexto)) {
-                const isAdmin = false; // Podrías verificar si es admin
-                const handled = await handleSpamAction(conn, m, m.sender, lowerTexto, chatId, isAdmin);
-                if (handled)
-                    return; // Si se manejó la acción, no procesar el audio
-            }
+            /* if (isSpam(m.sender, lowerTexto)) {
+               const isAdmin = false // Podrías verificar si es admin
+               const handled = await handleSpamAction(conn, m, m.sender, lowerTexto, chatId, isAdmin)
+               if (handled) return // Si se manejó la acción, no procesar el audio
+             }*/
             for (const source of sources) {
                 const clave = Object.keys(source).find(k => {
                     try {

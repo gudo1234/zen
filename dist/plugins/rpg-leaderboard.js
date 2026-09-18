@@ -3,6 +3,7 @@ const cooldowns = new Map();
 export default {
     name: ["lb", "leaderboard"],
     help: ["lb"],
+    desc: "Ver en top de usuario con más recursos",
     tags: ["econ"],
     register: true,
     run: async ({ conn, m, args }) => {
