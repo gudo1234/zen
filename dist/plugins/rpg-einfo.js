@@ -13,11 +13,13 @@ export default {
           lastclaim,
           lastrob,
           lastslut,
+          lastmiming,
           crime,
           ry_time,
           timevot,
           lastrobanc,
-          lasttraficar
+          lasttraficar,
+          lastcazar
         FROM usuarios
         WHERE id = $1 OR lid = $1`, [m.sender]);
             if (!u)
@@ -28,12 +30,14 @@ export default {
                 { label: 'Crime', last: u.crime, cd: 60 * 60 * 1000 },
                 { label: 'Daily', last: u.lastclaim, cd: 24 * 60 * 60 * 1000 },
                 { label: 'Work', last: u.lastwork, cd: 60 * 60 * 1000 },
+                { label: 'Minar', last: u.lastmiming, cd: 10 * 60 * 1000 },
                 { label: 'Rob', last: u.lastrob, cd: 30 * 60 * 1000 },
                 { label: 'Robanco', last: u.lastrobanc, cd: 60 * 60 * 1000 },
                 { label: 'Slut', last: u.lastslut, cd: 30 * 60 * 1000 },
                 { label: 'rw (Roll waifu)', last: u.ry_time, cd: 10 * 60 * 1000 },
                 { label: 'Vote', last: u.timevot, cd: 30 * 60 * 1000 },
-               { label: 'traficar', last: u.lasttraficar, cd: 30 * 60 * 1000 },
+                { label: 'Cazar', last: u.lastcazar, cd: 30 * 60 * 1000 },
+               { label: 'Traficar', last: u.lasttraficar, cd: 30 * 60 * 1000 },
             ];
             let text = `\n\n`;
             for (const c of cooldowns) {
