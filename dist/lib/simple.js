@@ -29,8 +29,8 @@ function getCleanUserJid(jid) {
 async function getDefaultContextInfo(conn, text = '') {
     const botId = conn.user?.id?.split(":")[0] || "mainbot";
     const settings = await getBotSettings(botId);
-    const jid = settings?.newsletter_jid || "120363285614743024@newsletter";
-    const name = settings?.newsletter_name || "ᴄʜᴀɴɴᴇʟ🦖ᴢᴇɴᴛʀɪx";
+    const jid = settings?.newsletter_jid || "120363321650707484@newsletter";
+    const name = settings?.newsletter_name || "Mitzuki official ✨️";
     const isActive = jid && jid !== "" && jid !== "off";
     const contextInfo = {
         mentionedJid: await conn.parseMention(text),
@@ -55,8 +55,8 @@ export async function smsg(conn, m) {
         // Obtener configuración del canal del bot
         const botId = conn.user?.id?.split(":")[0] || "mainbot";
         const settings = await getBotSettings(botId);
-        const channelJid = settings?.newsletter_jid || "120363285614743024@newsletter";
-        const channelName = settings?.newsletter_name || "ᴄʜᴀɴɴᴇʟ🦖ᴢᴇɴᴛʀɪx";
+        const channelJid = settings?.newsletter_jid || "120363321650707484@newsletter";
+        const channelName = settings?.newsletter_name || "Mitzuki official ✨️";
         const isActive = channelJid && channelJid !== "" && channelJid !== "off";
         const contextInfoDefault = {
             mentionedJid: await conn.parseMention(text),
@@ -246,6 +246,9 @@ export async function smsg(conn, m) {
     Array.prototype.getRandom = function () {
         return this[Math.floor(Math.random() * this.length)];
     };
+    Array.prototype.pickRandom = function (list) {
+        return list[Math.floor(Math.random() * list.length)];
+    };
     // reply
     /*conn.reply = async (chatId, text, quoted = null, options = {}) => {
         return await conn.sendMessage(chatId, { text }, { quoted, ...options });
@@ -332,7 +335,9 @@ export async function smsg(conn, m) {
     conn.sendFile = async function (jid, path, filename = '', caption = '', quoted = null, ptt = false, options = {}) {
         try {
             const contextInfo = options.contextInfo ?? {};
+            const viewOnce = options.viewOnce || false; // 🔥 AGREGAR ESTO
             delete options.contextInfo;
+            delete options.viewOnce; // 🔥 ELIMINAR viewOnce de options para no pasarlo mal
             const getCleanExt = (url) => {
                 const match = url.match(/\.([a-zA-Z0-9]+)(\?|$)/);
                 return match ? match[1].toLowerCase() : 'bin';
@@ -357,7 +362,6 @@ export async function smsg(conn, m) {
                         return 'document';
                     return 'document';
                 })();
-                // Obtener contextInfo por defecto
                 const defaultContextInfo = await getDefaultContextInfo(this, caption || '');
                 const finalContextInfo = { ...defaultContextInfo, ...contextInfo };
                 return await this.sendMessage(jid, {
@@ -365,6 +369,7 @@ export async function smsg(conn, m) {
                     mimetype: mime,
                     fileName,
                     caption,
+                    viewOnce: viewOnce, // 🔥 AGREGAR viewOnce
                     contextInfo: finalContextInfo,
                     ...options,
                 }, { quoted });
@@ -402,6 +407,7 @@ export async function smsg(conn, m) {
                     mimetype: mime,
                     fileName,
                     caption,
+                    viewOnce: viewOnce, // 🔥 AGREGAR viewOnce
                     contextInfo: finalContextInfo,
                     ...options,
                 }, { quoted });
