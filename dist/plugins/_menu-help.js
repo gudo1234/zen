@@ -386,10 +386,10 @@ export default {
             };
         }
         if (menuType === "image" && menuMedia) {
-            //await conn.sendMessage(m.chat, { image: { url: menuMedia }, caption: finalText, contextInfo }, { quoted: m });
+            await conn.sendMessage(m.chat, { image: { url: menuMedia }, caption: finalText, contextInfo }, { quoted: m });
         }
         else if (menuType === "video" && menuMedia) {
-            //await conn.sendMessage(m.chat, { video: { url: menuMedia }, caption: finalText, contextInfo }, { quoted: m });
+            await conn.sendMessage(m.chat, { video: { url: menuMedia }, caption: finalText, contextInfo }, { quoted: m });
         }
         else {
             await conn.reply(m.chat, finalText, m, {
