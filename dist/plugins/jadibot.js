@@ -276,7 +276,7 @@ https://api.mitzuki.xyz/bots
                 // mandar aviso solo una vez por sesión/arranque manual
                 if (sock.isFromCommand && m && !announcedOpen.has(numero)) {
                     announcedOpen.add(numero);
-                    await sock.sendMessage(m.chat, { text: `*Conectado exitosamente con WhatsApp ✅*\n\n*💻 Bot:* +${numero}\n*👤 Dueño:* ${ownerName}\n*🛠️ Prefix:* .setprefix (Revisa tu prefijo actual o cámbialo)\n✅ Si el bot no responde en tu grupo, revisa que el prefijo esté bien o si hay un bot primario en el grupo con: .setprimary\n\n> *Unirte a nuestro canal para informarte de todas la Actualizaciónes/novedades sobre el bot*\nhttps://whatsapp.com/channel/0029VagJ2FF4CrfrS8BoLW2b` }, { quoted: m || null }).catch(() => { });
+                    await sock.sendMessage(m.chat, { text: `*Conectado exitosamente con WhatsApp ✅*\n\n*💻 Bot:* +${numero}\n*👤 Dueño:* ${ownerName}\n*🛠️ Prefix:* .setprefix (Revisa tu prefijo actual o cámbialo)\n✅ Si el bot no responde en tu grupo, revisa que el prefijo esté bien o si hay un bot primario en el grupo con: .setprimary\n\n> *Unirte a nuestro canal para informarte de todas la Actualizaciónes/novedades sobre el bot*\nhttps://whatsapp.com/channel/0029VaXHNMZL7UVTeseuqw3H` }, { quoted: m || null }).catch(() => { });
                     sock.isFromCommand = false;
                 }
                 const info = getLimitInfo();
@@ -300,7 +300,7 @@ https://api.mitzuki.xyz/bots
                     const customPairingCode = "JADI" + rand4;
                     const code = await subSock.requestPairingCode(numero, customPairingCode);
                     const pretty = code.match(/.{1,4}/g)?.join("-") || code;
-                    let txt = "*🔰 MITZUKI 🔰*\nㅤㅤㅤㅤSer sub bot\n\n*1️⃣ Dirígete a los tres puntos en la esquina superior derecha*\n*2️⃣ Opción: Dispositivos vinculados*\n*3️⃣ Vincular con código de teléfono*\n*4️⃣ Pega el código a continuación*\n*5️⃣ Recuerda que esto es gratuito (Por lo tanto muchas quejas no serán tomadas en cuenta).*\n> Codigo de 8 digitos vencen en 60 segundos\n\n*✎ IMPORTANTE:* _No recomendamos usar tu número principal o personal. Si por alguna razón WhatsApp decide suspender el número *(por uso no autorizado, spam, etc.)*, podrías perder el acceso._";
+                    let txt = "*🔰 STOCKS 🔰*\nㅤㅤㅤㅤSer sub bot\n\n*1️⃣ Dirígete a los tres puntos en la esquina superior derecha*\n*2️⃣ Opción: Dispositivos vinculados*\n*3️⃣ Vincular con código de teléfono*\n*4️⃣ Pega el código a continuación*\n*5️⃣ Recuerda que esto es gratuito (Por lo tanto muchas quejas no serán tomadas en cuenta).*\n> Codigo de 8 digitos vencen en 60 segundos\n\n*✎ IMPORTANTE:* _No recomendamos usar tu número principal o personal. Si por alguna razón WhatsApp decide suspender el número *(por uso no autorizado, spam, etc.)*, podrías perder el acceso._";
                     let msg;
                     try {
                         msg = await sock.sendMessage(m.chat, { image: { url: "https://files.evogb.win/GataBot_1778873753995" }, caption: txt }, { quoted: m });
