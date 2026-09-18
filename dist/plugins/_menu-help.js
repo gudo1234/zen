@@ -392,14 +392,25 @@ export default {
             await conn.sendMessage(m.chat, { video: { url: menuMedia }, caption: finalText, contextInfo }, { quoted: m });
         }
         else {
-            await conn.reply(m.chat, finalText, m, {
-                thumbnail: Buffer.from(await (await fetch(global.icono())).arrayBuffer()),
-                title: "MENU - PRINCIPAL",
-                description: `ᴢᴇɴᴛʀɪx-ʙᴏᴛ (${tipo})`,
-                largeThumbnail: false,
-                previewType: "video",
-                thumbnailUrl: "https://www.instagram.com/edi504_"
-            });
+            try {
+    await conn.reply(m.chat, finalText, m, {
+        thumbnail: Buffer.from(await (await fetch(global.icono())).arrayBuffer()),
+        title: "MENU - PRINCIPAL",
+        description: `ᴢᴇɴᴛʀɪx-ʙᴏᴛ (${tipo})`,
+        largeThumbnail: false,
+        previewType: "video",
+        thumbnailUrl: "https://www.instagram.com/edi504_"
+    });
+} catch (e) {
+    await conn.reply(m.chat, finalText, m, {
+        thumbnail: img,
+        title: "MENU - PRINCIPAL",
+        description: `${name_bot} (${tipo})`,
+        largeThumbnail: true,
+        previewType: "video",
+        thumbnailUrl: "https://api.mitzuki.xyz"
+    });
+}
             //conn.sendMessage(m.chat, { text: finalText, contextInfo }, { quoted: m })
         }
     }
