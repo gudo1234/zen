@@ -202,7 +202,8 @@ export default {
                         : {
                             video: buffer,
                             mimetype: "video/mp4",
-                            caption: `🔰 *${data.title}*`
+                            caption: `🔰 *${data.title}*`,
+                            contextInfo: {}
                         },
                     { quoted: m }
                 );
