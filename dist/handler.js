@@ -1349,6 +1349,23 @@ if (plugin.tags?.includes('nsfw') && m.isGroup) {
   }
 }
         
+if (plugin.tags?.includes("econ")) {
+            const { aplicarHambre } = await import("./lib/rpg-utils.js");
+            const hambre = await aplicarHambre(m.sender, m.lid || "");
+            if (hambre && hambre.hambre > 0) {
+                // Opcional: avisar al usuario
+                // await m.reply(null, `🍽️ _Perdiste ${hambre.hambre} HP por hambre_`)
+            }
+        }
+        if (plugin.tags?.includes("econ")) {
+            const { verificarCobroAutomatico } = await import("./lib/rpg-prestamo-utils.js");
+            const cobro = await verificarCobroAutomatico(m.sender, m.lid || "");
+            if (cobro?.cobrado && cobro.mensaje) {
+                await conn.sendMessage(m.chat, { text: cobro.mensaje }, { quoted: m });
+                // NO hacemos return, dejamos que el comando siga
+            }
+        }
+
         //modeadmin
         if (isGroup) {
             try {
