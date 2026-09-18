@@ -99,7 +99,7 @@ export async function initDB() {
         ['sinvite', 'TEXT'],
         ['santifakemsg', 'TEXT'],
         ['sAutorespond', 'TEXT'],
-        ['autoresponder', 'BOOLEAN DEFAULT true'],
+        ['autoresponder', 'BOOLEAN DEFAULT false'],
         ['banned', 'BOOLEAN DEFAULT false'],
         ['memory_ttl', 'INTEGER DEFAULT 86400'],
         ['primary_bot', "TEXT DEFAULT NULL"],
