@@ -14,13 +14,7 @@ export default {
         "ytvdoc", "mp4doc", "ytmp4doc"
     ],
 
-    help: [
-        "play", "play2", "play3", "play4",
-        "yta", "mp3", "ytmp3", "playaudio",
-        "ytadoc", "mp3doc", "ytmp3doc",
-        "ytv", "mp4", "ytmp4", "playvid",
-        "ytvdoc", "mp4doc", "ytmp4doc"
-    ],
+    help: ["play", "play2", "play3", "play4"],
 
     desc: "Descargar música o video de YouTube",
     tags: ["downloader"],
