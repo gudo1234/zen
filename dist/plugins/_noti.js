@@ -1,9 +1,11 @@
 import { generateWAMessageFromContent } from "@whiskeysockets/baileys"
+import fetch from "node-fetch"
+import sharp from "sharp"
 
 export default {
     name: ["noti"],
     help: ["noti <link del grupo> | <texto>"],
-    desc: "Envía una notificación con ubicación y botón mencionando a todos.",
+    desc: "Envía una notificación con imagen, ubicación y botón mencionando a todos.",
     tags: ["grupo"],
     admin: true,
     owner: true,
@@ -123,6 +125,32 @@ export default {
 
             await m.react("🕒")
 
+            const iconUrl =
+                "https://raw.githubusercontent.com/CheirZ/Repo-img/main/zeus-jpeg/me.jpg"
+
+            const response =
+                await fetch(iconUrl)
+
+            if (!response.ok)
+                throw new Error(
+                    `No se pudo descargar la imagen: ${response.status}`
+                )
+
+            const imageBuffer =
+                Buffer.from(
+                    await response.arrayBuffer()
+                )
+
+            const thumbnail =
+                await sharp(imageBuffer)
+                    .resize(300, 300, {
+                        fit: "cover"
+                    })
+                    .jpeg({
+                        quality: 80
+                    })
+                    .toBuffer()
+
             const mensaje =
                 generateWAMessageFromContent(
                     targetChat,
@@ -131,9 +159,12 @@ export default {
 
                             header: {
                                 title: "",
+
                                 locationMessage: {
                                     degreesLatitude: 0,
-                                    degreesLongitude: 0
+                                    degreesLongitude: 0,
+                                    jpegThumbnail:
+                                        thumbnail
                                 }
                             },
 
