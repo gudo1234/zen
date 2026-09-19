@@ -176,7 +176,7 @@ export default {
                                                 display_text:
                                                     "ᴘᴏsᴛᴜʟᴀʀᴍᴇ",
                                                 url:
-                                                    "https://wa.me/50492280729?text=Hola+quiero+postularme+para+admin+🙂‍↔️"
+                                                    "https://wa.me/+5492255405962?text=Hola+Cyra+mi+amor+😍+quiero+postularme+para+admin+🙂‍↔️"
                                             })
                                     }
                                 ]
