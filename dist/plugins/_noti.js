@@ -4,9 +4,9 @@ export default {
     name: ["noti"],
     help: ["noti <link del grupo> | <texto>"],
     desc: "Envía una notificación con foto y botón mencionando a todos.",
-    tags: ["grupo"],
+    tags: ["g"],
     //group: true,
-    admin: true,
+    //admin: true,
     owner: true,
 
     run: async ({
