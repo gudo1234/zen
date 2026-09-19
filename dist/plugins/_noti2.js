@@ -2,8 +2,8 @@ import { prepareWAMessageMedia, generateWAMessageFromContent } from "@whiskeysoc
 
 export default {
     name: ["noti2"],
-    help: ["noti <link del grupo> | <texto> | <imagen> | <link botón>"],
-    desc: "Envía una notificación con foto y botón mencionando a todos.",
+    help: ["noti2 <link del grupo> | <texto> | <imagen> | <botón> | <número> | <texto WhatsApp>"],
+    desc: "Envía una notificación con foto, botón y menciona a todos.",
     tags: ["g"],
     //group: true,
     //admin: true,
@@ -19,37 +19,53 @@ export default {
 
         if (!text?.trim())
             return m.reply(
-                `${m.e.warn} Usa:\n${prefijo + cmd} <link del grupo> | <texto> | <imagen> | <link botón>`
+                `${m.e.warn} Usa:\n${prefijo + cmd} <link grupo> | <texto> | <imagen> | <botón> | <número> | <texto WhatsApp>`
             )
 
         const partes =
-            text.split("|")
+            text.split("|").map(x => x.trim())
 
         const link =
-            partes[0]?.trim()
+            partes[0]
 
         const texto =
-            partes[1]?.trim()
+            partes[1]
 
         const imagen =
-            partes[2]?.trim()
+            partes[2]
 
-        const boton =
-            partes[3]?.trim()
+        const displayText =
+            partes[3]
+
+        const numero =
+            partes[4]
+
+        const textoWhatsApp =
+            partes[5]
 
         if (!texto)
             return m.reply(
-                `${m.e.warn} Debes colocar un texto después de |`
+                `${m.e.warn} Debes colocar el texto de la notificación.`
             )
 
         if (!imagen)
             return m.reply(
-                `${m.e.warn} Debes colocar el link de la imagen después del texto.`
+                `${m.e.warn} Debes colocar el link de la imagen.`
             )
 
-        if (!boton)
+        if (!displayText)
             return m.reply(
-                `${m.e.warn} Debes colocar el link del botón al final.`
+                `${m.e.warn} Debes colocar el texto que aparecerá en el botón.`
+            )
+
+        if (!numero)
+            return m.reply(
+                `${m.e.warn} Debes colocar el número de WhatsApp.`
+            )
+
+        if (!textoWhatsApp)
+            return m.reply(
+                `${m.e.warn} Debes colocar el texto que abrirá WhatsApp.`
             )
 
         const match =
@@ -64,6 +80,21 @@ export default {
 
         const groupCode =
             match[1]
+
+        const numeroLimpio =
+            numero.replace(/\D/g, "")
+
+        if (!numeroLimpio)
+            return m.reply(
+                "❌ El número de WhatsApp no es válido."
+            )
+
+        const textoUrl =
+            encodeURIComponent(textoWhatsApp)
+                .replace(/%20/g, "+")
+
+        const urlBoton =
+            `https://wa.me/${numeroLimpio}?text=${textoUrl}`
 
         let targetChat = null
 
@@ -187,9 +218,9 @@ export default {
                                         buttonParamsJson:
                                             JSON.stringify({
                                                 display_text:
-                                                    "ᴘᴏsᴛᴜʟᴀʀᴍᴇ",
+                                                    displayText,
                                                 url:
-                                                    boton
+                                                    urlBoton
                                             })
                                     }
                                 ]
@@ -222,7 +253,7 @@ export default {
         } catch (error) {
 
             console.error(
-                "❌ Error en noti:",
+                "❌ Error en noti2:",
                 error
             )
 
@@ -234,4 +265,4 @@ export default {
             )
         }
     }
-    }
+}
