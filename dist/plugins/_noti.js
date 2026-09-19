@@ -1,11 +1,10 @@
-import { prepareWAMessageMedia, generateWAMessageFromContent } from "@whiskeysockets/baileys"
+import { generateWAMessageFromContent } from "@whiskeysockets/baileys"
 
 export default {
     name: ["noti"],
     help: ["noti <link del grupo> | <texto>"],
-    desc: "Envía una notificación con foto y botón mencionando a todos.",
+    desc: "Envía una notificación con ubicación y botón mencionando a todos.",
     tags: ["grupo"],
-    //group: true,
     admin: true,
     owner: true,
 
@@ -124,26 +123,6 @@ export default {
 
             await m.react("🕒")
 
-            const imageBuffer =
-                Buffer.from(
-                    await (
-                        await fetch(
-                            "https://raw.githubusercontent.com/CheirZ/Repo-img/main/zeus-jpeg/me.jpg"
-                        )
-                    ).arrayBuffer()
-                )
-
-            const media =
-                await prepareWAMessageMedia(
-                    {
-                        image: imageBuffer
-                    },
-                    {
-                        upload:
-                            conn.waUploadToServer
-                    }
-                )
-
             const mensaje =
                 generateWAMessageFromContent(
                     targetChat,
@@ -152,9 +131,10 @@ export default {
 
                             header: {
                                 title: "",
-                                hasMediaAttachment: true,
-                                imageMessage:
-                                    media.imageMessage
+                                locationMessage: {
+                                    degreesLatitude: 0,
+                                    degreesLongitude: 0
+                                }
                             },
 
                             body: {
@@ -175,6 +155,7 @@ export default {
                                             JSON.stringify({
                                                 display_text:
                                                     "ᴘᴏsᴛᴜʟᴀʀᴍᴇ",
+
                                                 url:
                                                     "https://wa.me/50492280729?text=Hola+quiero+postularme+para+admin+🙂‍↔️"
                                             })
@@ -221,4 +202,4 @@ export default {
             )
         }
     }
-              }
+}
