@@ -1,12 +1,11 @@
-import { generateWAMessageFromContent } from "@whiskeysockets/baileys"
-import fetch from "node-fetch"
-import sharp from "sharp"
+import { prepareWAMessageMedia, generateWAMessageFromContent } from "@whiskeysockets/baileys"
 
 export default {
     name: ["noti"],
     help: ["noti <link del grupo> | <texto>"],
-    desc: "Envía una notificación con miniatura y botón mencionando a todos.",
+    desc: "Envía una notificación con foto y botón mencionando a todos.",
     tags: ["grupo"],
+    //group: true,
     admin: true,
     owner: true,
 
@@ -23,52 +22,66 @@ export default {
                 `${m.e.warn} Usa:\n${prefijo + cmd} <link del grupo> | <texto>`
             )
 
-        const partes = text.split("|")
+        const partes =
+            text.split("|")
 
-        const link = partes[0]?.trim()
+        const link =
+            partes[0]?.trim()
 
-        const texto = partes
-            .slice(1)
-            .join("|")
-            .trim()
+        const texto =
+            partes
+                .slice(1)
+                .join("|")
+                .trim()
 
         if (!texto)
             return m.reply(
                 `${m.e.warn} Debes colocar un texto después de |`
             )
 
-        const match = link.match(
-            /(?:https?:\/\/)?chat\.whatsapp\.com\/([0-9A-Za-z]+)/
-        )
+        const match =
+            link.match(
+                /(?:https?:\/\/)?chat\.whatsapp\.com\/([0-9A-Za-z]+)/
+            )
 
         if (!match)
             return m.reply(
                 "❌ Debes colocar un enlace de grupo válido."
             )
 
-        const groupCode = match[1]
+        const groupCode =
+            match[1]
 
         let targetChat = null
 
         try {
+
             const info =
-                await conn.groupGetInviteInfo(groupCode)
+                await conn.groupGetInviteInfo(
+                    groupCode
+                )
 
             if (info?.id)
-                targetChat = info.id
+                targetChat =
+                    info.id
 
         } catch {}
 
         if (!targetChat) {
+
             try {
+
                 const joined =
-                    await conn.groupAcceptInvite(groupCode)
+                    await conn.groupAcceptInvite(
+                        groupCode
+                    )
 
                 if (
                     typeof joined === "string" &&
                     joined.includes("@g.us")
                 ) {
-                    targetChat = joined
+                    targetChat =
+                        joined
                 }
 
             } catch {}
@@ -114,19 +127,22 @@ export default {
             const imageBuffer =
                 Buffer.from(
                     await (
-                        await fetch(global.icono())
+                        await fetch(
+                            "https://raw.githubusercontent.com/edar123/im/main/media/me24.jpg"
+                        )
                     ).arrayBuffer()
                 )
 
-            const thumbnail =
-                await sharp(imageBuffer)
-                    .resize(300, 300, {
-                        fit: "cover"
-                    })
-                    .jpeg({
-                        quality: 80
-                    })
-                    .toBuffer()
+            const media =
+                await prepareWAMessageMedia(
+                    {
+                        image: imageBuffer
+                    },
+                    {
+                        upload:
+                            conn.waUploadToServer
+                    }
+                )
 
             const mensaje =
                 generateWAMessageFromContent(
@@ -135,22 +151,26 @@ export default {
                         interactiveMessage: {
 
                             header: {
-                                title: "MENU - PRINCIPAL",
-                                hasMediaAttachment: true
+                                title: "",
+                                hasMediaAttachment: true,
+                                imageMessage:
+                                    media.imageMessage
                             },
 
                             body: {
-                                text: texto
+                                text: ""
                             },
 
                             footer: {
-                                text: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ"
+                                text: texto
                             },
 
                             nativeFlowMessage: {
+
                                 buttons: [
                                     {
                                         name: "cta_url",
+
                                         buttonParamsJson:
                                             JSON.stringify({
                                                 display_text:
@@ -163,23 +183,15 @@ export default {
                             },
 
                             contextInfo: {
-                                mentionedJid: users,
-                                externalAdReply: {
-                                    title: "MENU - PRINCIPAL",
-                                    body: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
-                                    thumbnail,
-                                    sourceUrl:
-                                        "https://www.instagram.com/edi504_",
-                                    mediaType: 1,
-                                    renderLargerThumbnail: true,
-                                    showAdAttribution: false
-                                }
+                                mentionedJid:
+                                    users
                             }
                         }
                     },
                     {
                         userJid:
-                            conn.user.id
+                            conn.user.id,
+                        quoted: null
                     }
                 )
 
@@ -209,4 +221,4 @@ export default {
             )
         }
     }
-}
+              }
