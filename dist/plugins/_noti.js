@@ -5,7 +5,7 @@ import sharp from "sharp"
 export default {
     name: ["noti"],
     help: ["noti <link del grupo> | <texto>"],
-    desc: "Envía una notificación con imagen, ubicación y botón mencionando a todos.",
+    desc: "Envía una notificación con ubicación, imagen y botón mencionando a todos.",
     tags: ["grupo"],
     admin: true,
     owner: true,
@@ -23,66 +23,52 @@ export default {
                 `${m.e.warn} Usa:\n${prefijo + cmd} <link del grupo> | <texto>`
             )
 
-        const partes =
-            text.split("|")
+        const partes = text.split("|")
 
-        const link =
-            partes[0]?.trim()
+        const link = partes[0]?.trim()
 
-        const texto =
-            partes
-                .slice(1)
-                .join("|")
-                .trim()
+        const texto = partes
+            .slice(1)
+            .join("|")
+            .trim()
 
         if (!texto)
             return m.reply(
                 `${m.e.warn} Debes colocar un texto después de |`
             )
 
-        const match =
-            link.match(
-                /(?:https?:\/\/)?chat\.whatsapp\.com\/([0-9A-Za-z]+)/
-            )
+        const match = link.match(
+            /(?:https?:\/\/)?chat\.whatsapp\.com\/([0-9A-Za-z]+)/
+        )
 
         if (!match)
             return m.reply(
                 "❌ Debes colocar un enlace de grupo válido."
             )
 
-        const groupCode =
-            match[1]
+        const groupCode = match[1]
 
         let targetChat = null
 
         try {
-
             const info =
-                await conn.groupGetInviteInfo(
-                    groupCode
-                )
+                await conn.groupGetInviteInfo(groupCode)
 
             if (info?.id)
-                targetChat =
-                    info.id
+                targetChat = info.id
 
         } catch {}
 
         if (!targetChat) {
-
             try {
-
                 const joined =
-                    await conn.groupAcceptInvite(
-                        groupCode
-                    )
+                    await conn.groupAcceptInvite(groupCode)
 
                 if (
                     typeof joined === "string" &&
                     joined.includes("@g.us")
                 ) {
-                    targetChat =
-                        joined
+                    targetChat = joined
                 }
 
             } catch {}
@@ -151,59 +137,39 @@ export default {
                     })
                     .toBuffer()
 
+            const rawContent = {
+                buttonsMessage: {
+
+                    locationMessage: {
+                        degreesLatitude: 0,
+                        degreesLongitude: 0,
+                        jpegThumbnail: thumbnail
+                    },
+
+                    contentText: texto,
+
+                    footerText: "Zentríx Bot",
+
+                    buttons: [
+                        {
+                            buttonId: ".postularme",
+                            buttonText: {
+                                displayText: "ᴘᴏsᴛᴜʟᴀʀᴍᴇ"
+                            },
+                            type: 1
+                        }
+                    ],
+
+                    headerType: 6
+                }
+            }
+
             const mensaje =
                 generateWAMessageFromContent(
                     targetChat,
+                    rawContent,
                     {
-                        interactiveMessage: {
-
-                            header: {
-                                title: "",
-
-                                locationMessage: {
-                                    degreesLatitude: 0,
-                                    degreesLongitude: 0,
-                                    jpegThumbnail:
-                                        thumbnail
-                                }
-                            },
-
-                            body: {
-                                text: ""
-                            },
-
-                            footer: {
-                                text: texto
-                            },
-
-                            nativeFlowMessage: {
-
-                                buttons: [
-                                    {
-                                        name: "cta_url",
-
-                                        buttonParamsJson:
-                                            JSON.stringify({
-                                                display_text:
-                                                    "ᴘᴏsᴛᴜʟᴀʀᴍᴇ",
-
-                                                url:
-                                                    "https://wa.me/50492280729?text=Hola+quiero+postularme+para+admin+🙂‍↔️"
-                                            })
-                                    }
-                                ]
-                            },
-
-                            contextInfo: {
-                                mentionedJid:
-                                    users
-                            }
-                        }
-                    },
-                    {
-                        userJid:
-                            conn.user.id,
-                        quoted: null
+                        userJid: conn.user.id
                     }
                 )
 
@@ -211,8 +177,7 @@ export default {
                 targetChat,
                 mensaje.message,
                 {
-                    messageId:
-                        mensaje.key.id
+                    messageId: mensaje.key.id
                 }
             )
 
