@@ -1,10 +1,190 @@
-import { prepareWAMessageMedia, generateWAMessageFromContent } from "@whiskeysockets/baileys"
+import {
+    prepareWAMessageMedia,
+    generateWAMessageFromContent
+} from "@whiskeysockets/baileys"
+
+function encontrarMedia(message = {}) {
+
+    const tipos = [
+        "imageMessage",
+        "videoMessage"
+    ]
+
+    const wrappers = [
+        "ephemeralMessage",
+        "viewOnceMessage",
+        "viewOnceMessageV2",
+        "viewOnceMessageV2Extension",
+        "documentWithCaptionMessage",
+        "editedMessage",
+        "deviceSentMessage",
+        "futureproofMessage"
+    ]
+
+    function buscar(obj, profundidad = 0) {
+
+        if (
+            !obj ||
+            typeof obj !== "object" ||
+            profundidad > 15
+        )
+            return null
+
+        for (const tipo of tipos) {
+
+            if (obj[tipo]) {
+
+                return {
+                    type: tipo,
+                    message: obj
+                }
+            }
+        }
+
+        for (const wrapper of wrappers) {
+
+            const contenido =
+                obj[wrapper]?.message
+
+            if (contenido) {
+
+                const encontrado =
+                    buscar(
+                        contenido,
+                        profundidad + 1
+                    )
+
+                if (encontrado)
+                    return encontrado
+            }
+        }
+
+        return null
+    }
+
+    return buscar(message)
+}
+
+async function descargarMedia(conn, source) {
+
+    if (!source)
+        throw new Error(
+            "No se encontró el multimedia."
+        )
+
+    let buffer = null
+
+    if (
+        typeof source.download === "function"
+    ) {
+
+        try {
+
+            buffer =
+                await source.download()
+
+        } catch {}
+    }
+
+    if (
+        Buffer.isBuffer(buffer) &&
+        buffer.length
+    )
+        return buffer
+
+    if (
+        typeof conn.downloadMediaMessage === "function"
+    ) {
+
+        try {
+
+            buffer =
+                await conn.downloadMediaMessage(
+                    source
+                )
+
+        } catch {}
+    }
+
+    if (
+        Buffer.isBuffer(buffer) &&
+        buffer.length
+    )
+        return buffer
+
+    if (
+        typeof conn.downloadAndSaveMediaMessage === "function"
+    ) {
+
+        try {
+
+            const os =
+                await import("os")
+
+            const fs =
+                await import("fs/promises")
+
+            const path =
+                await import("path")
+
+            const dir =
+                await fs.mkdtemp(
+                    path.join(
+                        os.tmpdir(),
+                        "noti2-"
+                    )
+                )
+
+            const file =
+                path.join(
+                    dir,
+                    "media"
+                )
+
+            const saved =
+                await conn.downloadAndSaveMediaMessage(
+                    source,
+                    file
+                )
+
+            const data =
+                await fs.readFile(
+                    saved || file
+                )
+
+            await fs.rm(
+                dir,
+                {
+                    recursive: true,
+                    force: true
+                }
+            ).catch(() => {})
+
+            if (
+                Buffer.isBuffer(data) &&
+                data.length
+            )
+                return data
+
+        } catch {}
+    }
+
+    throw new Error(
+        "No se pudo descargar el multimedia."
+    )
+}
 
 export default {
     name: ["noti2"],
-    help: ["noti2 <link del grupo> | <texto> | <imagen> | <botón> | <número> | <texto WhatsApp>"],
-    desc: "Envía una notificación con foto, botón y menciona a todos.",
+
+    help: [
+        "noti2 <link grupo> | <texto> | <botón> | <número> | <texto WhatsApp>"
+    ],
+
+    desc: "Envía una notificación con imagen, video o GIF y botón configurable.",
+
     tags: ["g"],
+
     //group: true,
     //admin: true,
     owner: true,
@@ -19,11 +199,13 @@ export default {
 
         if (!text?.trim())
             return m.reply(
-                `${m.e.warn} Usa:\n${prefijo + cmd} <link grupo> | <texto> | <imagen> | <botón> | <número> | <texto WhatsApp>`
+                `${m.e.warn} Usa:\n${prefijo + cmd} <link grupo> | <texto> | <botón> | <número> | <texto WhatsApp>\n\nDebes responder a una imagen, video o GIF.`
             )
 
         const partes =
-            text.split("|").map(x => x.trim())
+            text
+                .split("|")
+                .map(x => x.trim())
 
         const link =
             partes[0]
@@ -31,31 +213,26 @@ export default {
         const texto =
             partes[1]
 
-        const imagen =
+        const displayText =
             partes[2]
 
-        const displayText =
+        const numero =
             partes[3]
 
-        const numero =
-            partes[4]
-
         const textoWhatsApp =
-            partes[5]
+            partes
+                .slice(4)
+                .join("|")
+                .trim()
 
         if (!texto)
             return m.reply(
                 `${m.e.warn} Debes colocar el texto de la notificación.`
             )
 
-        if (!imagen)
-            return m.reply(
-                `${m.e.warn} Debes colocar el link de la imagen.`
-            )
-
         if (!displayText)
             return m.reply(
-                `${m.e.warn} Debes colocar el texto que aparecerá en el botón.`
+                `${m.e.warn} Debes colocar el texto del botón.`
             )
 
         if (!numero)
@@ -69,7 +246,7 @@ export default {
             )
 
         const match =
-            link.match(
+            link?.match(
                 /(?:https?:\/\/)?chat\.whatsapp\.com\/([0-9A-Za-z]+)/
             )
 
@@ -89,12 +266,8 @@ export default {
                 "❌ El número de WhatsApp no es válido."
             )
 
-        const textoUrl =
-            encodeURIComponent(textoWhatsApp)
-                .replace(/%20/g, "+")
-
         const urlBoton =
-            `https://wa.me/${numeroLimpio}?text=${textoUrl}`
+            `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(textoWhatsApp).replace(/%20/g, "+")}`
 
         let targetChat = null
 
@@ -123,10 +296,9 @@ export default {
                 if (
                     typeof joined === "string" &&
                     joined.includes("@g.us")
-                ) {
+                )
                     targetChat =
                         joined
-                }
 
             } catch {}
         }
@@ -164,29 +336,90 @@ export default {
                 "❌ No encontré participantes para mencionar."
             )
 
+        let actual =
+            encontrarMedia(
+                m.message || {}
+            )
+
+        let mediaSource =
+            actual ?
+                m :
+                null
+
+        if (!actual && m.quoted) {
+
+            actual =
+                encontrarMedia(
+                    m.quoted.message ||
+                    m.quoted.msg ||
+                    {}
+                )
+
+            if (actual)
+                mediaSource =
+                    m.quoted
+        }
+
+        if (!actual)
+            return m.reply(
+                "❌ Debes responder a una imagen, video o GIF."
+            )
+
         try {
 
             await m.react("🕒")
 
-            const imageBuffer =
-                Buffer.from(
-                    await (
-                        await fetch(
-                            imagen
-                        )
-                    ).arrayBuffer()
+            const buffer =
+                await descargarMedia(
+                    conn,
+                    mediaSource
                 )
+
+            if (
+                !Buffer.isBuffer(buffer) ||
+                !buffer.length
+            )
+                throw new Error(
+                    "El multimedia está vacío."
+                )
+
+            const tipo =
+                actual.type === "imageMessage" ?
+                    "image" :
+                    "video"
+
+            const contenido =
+                tipo === "image" ?
+                    {
+                        image: buffer
+                    } :
+                    {
+                        video: buffer
+                    }
 
             const media =
                 await prepareWAMessageMedia(
-                    {
-                        image: imageBuffer
-                    },
+                    contenido,
                     {
                         upload:
                             conn.waUploadToServer
                     }
                 )
+
+            const header =
+                tipo === "image" ?
+                    {
+                        title: "",
+                        hasMediaAttachment: true,
+                        imageMessage:
+                            media.imageMessage
+                    } :
+                    {
+                        title: "",
+                        hasMediaAttachment: true,
+                        videoMessage:
+                            media.videoMessage
+                    }
 
             const mensaje =
                 generateWAMessageFromContent(
@@ -194,12 +427,7 @@ export default {
                     {
                         interactiveMessage: {
 
-                            header: {
-                                title: "",
-                                hasMediaAttachment: true,
-                                imageMessage:
-                                    media.imageMessage
-                            },
+                            header,
 
                             body: {
                                 text: ""
