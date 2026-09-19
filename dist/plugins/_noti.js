@@ -128,7 +128,7 @@ export default {
                 Buffer.from(
                     await (
                         await fetch(
-                            "https://qu.ax/UCmgl"
+                            "https://raw.githubusercontent.com/CheirZ/Repo-img/main/zeus-jpeg/me.jpg"
                         )
                     ).arrayBuffer()
                 )
