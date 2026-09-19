@@ -5,7 +5,7 @@ import sharp from "sharp"
 export default {
     name: ["noti"],
     help: ["noti <link del grupo> | <texto>"],
-    desc: "Envía una notificación con ubicación, imagen y botón mencionando a todos.",
+    desc: "Envía una notificación con miniatura y botón mencionando a todos.",
     tags: ["grupo"],
     admin: true,
     owner: true,
@@ -111,20 +111,11 @@ export default {
 
             await m.react("🕒")
 
-            const iconUrl =
-                "https://raw.githubusercontent.com/CheirZ/Repo-img/main/zeus-jpeg/me.jpg"
-
-            const response =
-                await fetch(iconUrl)
-
-            if (!response.ok)
-                throw new Error(
-                    `No se pudo descargar la imagen: ${response.status}`
-                )
-
             const imageBuffer =
                 Buffer.from(
-                    await response.arrayBuffer()
+                    await (
+                        await fetch(global.icono())
+                    ).arrayBuffer()
                 )
 
             const thumbnail =
@@ -137,39 +128,58 @@ export default {
                     })
                     .toBuffer()
 
-            const rawContent = {
-                buttonsMessage: {
-
-                    locationMessage: {
-                        degreesLatitude: 0,
-                        degreesLongitude: 0,
-                        jpegThumbnail: thumbnail
-                    },
-
-                    contentText: texto,
-
-                    footerText: "Zentríx Bot",
-
-                    buttons: [
-                        {
-                            buttonId: ".postularme",
-                            buttonText: {
-                                displayText: "ᴘᴏsᴛᴜʟᴀʀᴍᴇ"
-                            },
-                            type: 1
-                        }
-                    ],
-
-                    headerType: 6
-                }
-            }
-
             const mensaje =
                 generateWAMessageFromContent(
                     targetChat,
-                    rawContent,
                     {
-                        userJid: conn.user.id
+                        interactiveMessage: {
+
+                            header: {
+                                title: "MENU - PRINCIPAL",
+                                hasMediaAttachment: true
+                            },
+
+                            body: {
+                                text: texto
+                            },
+
+                            footer: {
+                                text: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ"
+                            },
+
+                            nativeFlowMessage: {
+                                buttons: [
+                                    {
+                                        name: "cta_url",
+                                        buttonParamsJson:
+                                            JSON.stringify({
+                                                display_text:
+                                                    "ᴘᴏsᴛᴜʟᴀʀᴍᴇ",
+                                                url:
+                                                    "https://wa.me/50492280729?text=Hola+quiero+postularme+para+admin+🙂‍↔️"
+                                            })
+                                    }
+                                ]
+                            },
+
+                            contextInfo: {
+                                mentionedJid: users,
+                                externalAdReply: {
+                                    title: "MENU - PRINCIPAL",
+                                    body: "ᴢᴇɴᴛʀɪx-ʙᴏᴛ",
+                                    thumbnail,
+                                    sourceUrl:
+                                        "https://www.instagram.com/edi504_",
+                                    mediaType: 1,
+                                    renderLargerThumbnail: true,
+                                    showAdAttribution: false
+                                }
+                            }
+                        }
+                    },
+                    {
+                        userJid:
+                            conn.user.id
                     }
                 )
 
@@ -177,7 +187,8 @@ export default {
                 targetChat,
                 mensaje.message,
                 {
-                    messageId: mensaje.key.id
+                    messageId:
+                        mensaje.key.id
                 }
             )
 
