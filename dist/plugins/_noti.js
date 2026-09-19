@@ -1,4 +1,4 @@
-import { prepareWAMessageMedia, generateWAMessageFromContent } from "baileys"
+//import { prepareWAMessageMedia, generateWAMessageFromContent } from "baileys"
 
 export default {
     name: ["noti"],
