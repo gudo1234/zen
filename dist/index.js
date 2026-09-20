@@ -360,7 +360,9 @@ async function main() {
     }
     await main();
 })().catch(console.error);
-setInterval(() => {
+
+/*setInterval(() => {
     console.log('♻️ Reiniciando bot automáticamente...');
     process.exit(0);
 }, 3600000); //1hs
+*/
