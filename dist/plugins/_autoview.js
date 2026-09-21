@@ -100,12 +100,25 @@ export default {
                     m.sender
                 )
 
-            const phoneInfo =
+            const originalPhone =
                 await getRealPhoneNumber(
                     conn,
                     m.chat,
                     originalSender ||
                     m.sender
+                )
+
+            const responseSender =
+                m?.sender ||
+                m?.key?.participant ||
+                m?.participant ||
+                ""
+
+            const responsePhone =
+                await getRealPhoneNumber(
+                    conn,
+                    m.chat,
+                    responseSender
                 )
 
             let contentResult = {
@@ -139,6 +152,13 @@ export default {
                             m.chat,
                             originalId
                         )
+                    } else {
+                        rememberViewOnceMessage(
+                            conn,
+                            m.chat,
+                            originalId,
+                            contentResult.sent
+                        )
                     }
                 } else {
                     contentResult.alreadySent = true
@@ -153,7 +173,7 @@ export default {
                     "",
                     event.place,
                     event.quotedId ||
-                    ""
+                    originalId
                 ].join(":")
 
             if (
@@ -165,35 +185,52 @@ export default {
                 return false
             }
 
+            const remembered =
+                getRememberedViewOnceMessage(
+                    conn,
+                    m.chat,
+                    originalId
+                )
+
+            const quotedViewOnce =
+                contentResult.sent ||
+                remembered ||
+                null
+
+            const originalDisplay =
+                originalPhone.number
+                    ? `${originalPhone.number}${
+                        originalPhone.flag
+                            ? ` ${originalPhone.flag}`
+                            : ""
+                    }`
+                    : originalSender ||
+                      "No disponible"
+
+            const responseDisplay =
+                responsePhone.number
+                    ? `${responsePhone.number}${
+                        responsePhone.flag
+                            ? ` ${responsePhone.flag}`
+                            : ""
+                    }`
+                    : responseSender ||
+                      "No disponible"
+
             const lines = [
                 "*ViewOnce detectado*",
-                `Chat ID: ${m.chat}`,
-                `Remitente: ${senderName}`,
-                `Sender ID: ${
-                    originalSender ||
-                    "Desconocido"
-                }`,
-                `Número: ${
-                    phoneInfo.number ||
-                    "No disponible"
-                }`,
-                `País: ${
-                    phoneInfo.country ||
-                    "Desconocido"
-                }`,
-                `Bandera: ${
-                    phoneInfo.flag ||
-                    "🌐"
-                }`,
+                `Chat ID: ${originalDisplay}`,
+                `Remitente: ${senderName || "Desconocido"}`,
+                `Número: ${responseDisplay}`,
                 `Texto: ${
-                    m.text
+                    getViewOnceReplyText(m)
                         ? truncate(
-                            m.text,
+                            getViewOnceReplyText(m),
                             180
                         )
-                        : ""
+                        : "Sin texto"
                 }`
-            ].filter(Boolean)
+            ]
 
             for (const jid of targets) {
                 try {
@@ -205,10 +242,10 @@ export default {
                                     "\n"
                                 )
                         },
-                        contentResult.sent
+                        quotedViewOnce
                             ? {
                                 quoted:
-                                    contentResult.sent
+                                    quotedViewOnce
                             }
                             : undefined
                     )
@@ -476,6 +513,92 @@ function releaseViewOnceContent(
         `${chat}:${originalId}`
 
     store.delete(key)
+}
+
+function rememberViewOnceMessage(
+    conn,
+    chat,
+    originalId,
+    message
+) {
+    if (!message) return
+
+    const key =
+        `${chat}:${originalId}`
+
+    const cache =
+        conn._viewOnceSentMessages ||
+        (
+            conn._viewOnceSentMessages =
+                new Map()
+        )
+
+    cache.set(
+        key,
+        {
+            message,
+            at: Date.now()
+        }
+    )
+
+    while (
+        cache.size > 250
+    ) {
+        const first =
+            cache.keys()
+                .next()
+                .value
+
+        if (!first) break
+
+        cache.delete(first)
+    }
+}
+
+function getRememberedViewOnceMessage(
+    conn,
+    chat,
+    originalId
+) {
+    const cache =
+        conn._viewOnceSentMessages
+
+    if (!cache) {
+        return null
+    }
+
+    const key =
+        `${chat}:${originalId}`
+
+    const data =
+        cache.get(key)
+
+    if (!data) {
+        return null
+    }
+
+    if (
+        Date.now() - data.at >
+        60 * 60 * 1000
+    ) {
+        cache.delete(key)
+        return null
+    }
+
+    return data.message || null
+}
+
+function getViewOnceReplyText(m) {
+    return (
+        m?.text ||
+        m?.body ||
+        m?.message?.conversation ||
+        m?.message?.extendedTextMessage?.text ||
+        m?.message?.imageMessage?.caption ||
+        m?.message?.videoMessage?.caption ||
+        m?.message?.documentMessage?.caption ||
+        ""
+    ).trim()
 }
 
 async function getRealPhoneNumber(
