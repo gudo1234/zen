@@ -75,6 +75,7 @@ export default {
             if (!targets.length) {
                 return false
             }
+
             const originalId =
                 getOriginalViewOnceId(
                     event,
@@ -84,6 +85,7 @@ export default {
             if (!originalId) {
                 return false
             }
+
             const originalSender =
                 await getOriginalSender(
                     conn,
@@ -94,38 +96,18 @@ export default {
             const senderName =
                 await safeName(
                     conn,
-                    originalSender
+                    originalSender ||
+                    m.sender
                 )
+
             const phoneInfo =
                 await getRealPhoneNumber(
                     conn,
                     m.chat,
-                    originalSender
+                    originalSender ||
+                    m.sender
                 )
 
-            const lines = [
-                "*ViewOnce detectado*",
-                `Chat ID: ${m.chat}`,
-                `Remitente: ${senderName}`,
-                `Sender ID: ${originalSender || "Desconocido"}`,
-                `Número: ${
-                    phoneInfo.number ||
-                    "No disponible"
-                }`,
-                `País: ${
-                    phoneInfo.country ||
-                    "Desconocido"
-                }`,
-                `Bandera: ${
-                    phoneInfo.flag ||
-                    "🌐"
-                }`,
-                `Texto: ${
-                    m.text
-                        ? truncate(m.text, 180)
-                        : ""
-                }`
-            ].filter(Boolean)
             let contentResult = {
                 ok: false,
                 method: "",
@@ -150,6 +132,7 @@ export default {
                             event,
                             m
                         )
+
                     if (!contentResult.ok) {
                         releaseViewOnceContent(
                             conn,
@@ -161,12 +144,66 @@ export default {
                     contentResult.alreadySent = true
                 }
             }
+
+            const infoKey =
+                [
+                    m.chat,
+                    m.id ||
+                    m.key?.id ||
+                    "",
+                    event.place,
+                    event.quotedId ||
+                    ""
+                ].join(":")
+
+            if (
+                seenBefore(
+                    conn,
+                    infoKey
+                )
+            ) {
+                return false
+            }
+
+            const lines = [
+                "*ViewOnce detectado*",
+                `Chat ID: ${m.chat}`,
+                `Remitente: ${senderName}`,
+                `Sender ID: ${
+                    originalSender ||
+                    "Desconocido"
+                }`,
+                `Número: ${
+                    phoneInfo.number ||
+                    "No disponible"
+                }`,
+                `País: ${
+                    phoneInfo.country ||
+                    "Desconocido"
+                }`,
+                `Bandera: ${
+                    phoneInfo.flag ||
+                    "🌐"
+                }`,
+                `Texto: ${
+                    m.text
+                        ? truncate(
+                            m.text,
+                            180
+                        )
+                        : ""
+                }`
+            ].filter(Boolean)
+
             for (const jid of targets) {
                 try {
                     await conn.sendMessage(
                         jid,
                         {
-                            text: lines.join("\n")
+                            text:
+                                lines.join(
+                                    "\n"
+                                )
                         },
                         contentResult.sent
                             ? {
@@ -183,6 +220,17 @@ export default {
                         error
                     )
                 }
+            }
+
+            if (
+                !contentResult.ok &&
+                contentResult.error
+            ) {
+                console.error(
+                    "[viewonce-monitor:media]",
+                    contentResult.error?.message ||
+                    contentResult.error
+                )
             }
 
         } catch (error) {
@@ -370,7 +418,9 @@ function getOriginalViewOnceId(
     const serializedKey =
         serialized?.key || {}
 
-    if (event?.place === "cita") {
+    if (
+        event?.place === "cita"
+    ) {
         return (
             event?.quotedId ||
             webKey?.id ||
@@ -387,6 +437,7 @@ function getOriginalViewOnceId(
         ""
     )
 }
+
 function claimViewOnceContent(
     conn,
     chat,
@@ -496,13 +547,11 @@ async function getRealPhoneNumber(
             pn.getRegionCode() ||
             "??"
 
-        const country =
-            getCountryName(code)
-
         return {
             number:
                 "+" + id,
-            country,
+            country:
+                getCountryName(code),
             flag:
                 getFlagEmoji(code)
         }
@@ -574,23 +623,21 @@ async function getOriginalSender(
 
     const key =
         web?.key || {}
-    const possible =
-        [
-            key.participant,
-            web?.participant,
-            event?.serialized?.participant,
-            event?.serialized?.sender,
-            m?.quoted?.sender,
-            m?.quoted?.participant,
-            m?.sender
-        ].filter(Boolean)
+
+    const possible = [
+        key.participant,
+        web?.participant,
+        event?.serialized?.participant,
+        event?.serialized?.sender,
+        m?.quoted?.sender,
+        m?.quoted?.participant,
+        m?.sender
+    ].filter(Boolean)
 
     if (!possible.length) {
         return ""
     }
 
-    const candidate =
-        possible[0]
     try {
         const metadata =
             await conn.groupMetadata(
@@ -601,26 +648,28 @@ async function getOriginalSender(
             metadata?.participants ||
             []
 
-        const found =
-            participants.find(
-                user =>
-                    user?.id === candidate ||
-                    user?.jid === candidate ||
-                    user?.lid === candidate ||
-                    user?.phoneNumber === candidate
-            )
+        for (const candidate of possible) {
+            const found =
+                participants.find(
+                    user =>
+                        user?.id === candidate ||
+                        user?.jid === candidate ||
+                        user?.lid === candidate ||
+                        user?.phoneNumber === candidate
+                )
 
-        if (found) {
-            return (
-                found.phoneNumber ||
-                found.jid ||
-                found.id ||
-                candidate
-            )
+            if (found) {
+                return (
+                    found.phoneNumber ||
+                    found.jid ||
+                    found.id ||
+                    candidate
+                )
+            }
         }
     } catch {}
 
-    return candidate
+    return possible[0]
 }
 
 async function sendViewOnceContent(
@@ -632,19 +681,45 @@ async function sendViewOnceContent(
     let copyError = null
 
     if (
-        event?.innerMessage &&
-        typeof conn?.copyNForward === "function"
+        typeof conn?.copyNForward ===
+        "function"
     ) {
-        try {
-            const source =
-                buildForwardableMessage(
-                    event.webMessage,
-                    event.innerMessage,
-                    m,
-                    event
-                )
+        const sources = []
 
-            if (source) {
+        if (event?.webMessage) {
+            sources.push(
+                event.webMessage
+            )
+        }
+
+        if (
+            event?.serialized &&
+            event.serialized !==
+                event.webMessage
+        ) {
+            sources.push(
+                event.serialized
+            )
+        }
+
+        const rebuilt =
+            buildForwardableMessage(
+                event?.webMessage,
+                event?.innerMessage,
+                m,
+                event
+            )
+
+        if (rebuilt) {
+            sources.push(
+                rebuilt
+            )
+        }
+
+        for (const source of sources) {
+            if (!source) continue
+
+            try {
                 const sent =
                     await conn.copyNForward(
                         target,
@@ -664,15 +739,10 @@ async function sendViewOnceContent(
                         error: null
                     }
                 }
-            }
-        } catch (error) {
-            copyError = error
 
-            console.error(
-                "[viewonce-monitor:copyNForward]",
-                error?.message ||
-                error
-            )
+            } catch (error) {
+                copyError = error
+            }
         }
     }
 
@@ -1083,7 +1153,8 @@ function buildForwardableMessage(
 ) {
     if (
         !innerMessage ||
-        typeof innerMessage !== "object"
+        typeof innerMessage !==
+            "object"
     ) {
         return null
     }
@@ -1263,7 +1334,9 @@ function normalizeInnerMessage(
             message?.[wrapper]?.message
         ) {
             return normalizeInnerMessage(
-                message[wrapper].message
+                message[
+                    wrapper
+                ].message
             )
         }
     }
@@ -1324,6 +1397,102 @@ function findContextInfo(
         const found =
             findContextInfo(
                 message?.[wrapper]?.message,
+                depth + 1
+            )
+
+        if (found) {
+            return found
+        }
+    }
+
+    return null
+}
+
+function detectViewOnceMessage(
+    message,
+    depth = 0
+) {
+    if (
+        !message ||
+        typeof message !== "object" ||
+        depth > 15
+    ) {
+        return null
+    }
+
+    for (
+        const wrapper of [
+            "viewOnceMessage",
+            "viewOnceMessageV2",
+            "viewOnceMessageV2Extension"
+        ]
+    ) {
+        const inner =
+            message?.[wrapper]?.message
+
+        if (
+            inner &&
+            typeof inner ===
+                "object"
+        ) {
+            return {
+                wrapper,
+                mediaType:
+                    getMediaType(
+                        inner
+                    ),
+                innerMessage:
+                    inner
+            }
+        }
+    }
+
+    for (
+        const type of [
+            "imageMessage",
+            "videoMessage",
+            "audioMessage",
+            "documentMessage"
+        ]
+    ) {
+        const node =
+            message?.[type]
+
+        if (
+            node &&
+            typeof node ===
+                "object" &&
+            (
+                node.viewOnce ||
+                node.isViewOnce
+            )
+        ) {
+            return {
+                wrapper:
+                    "media.viewOnce",
+                mediaType:
+                    type,
+                innerMessage:
+                    message
+            }
+        }
+    }
+
+    for (
+        const wrapper of [
+            "ephemeralMessage",
+            "documentWithCaptionMessage",
+            "editedMessage",
+            "deviceSentMessage",
+            "futureproofMessage"
+        ]
+    ) {
+        const inner =
+            message?.[wrapper]?.message
+
+        const found =
+            detectViewOnceMessage(
+                inner,
                 depth + 1
             )
 
@@ -1430,15 +1599,27 @@ function normalizeMediaType(
             ""
         )
 
-    if (/^image\//i.test(mimeType)) {
+    if (
+        /^image\//i.test(
+            mimeType
+        )
+    ) {
         return "image"
     }
 
-    if (/^video\//i.test(mimeType)) {
+    if (
+        /^video\//i.test(
+            mimeType
+        )
+    ) {
         return "video"
     }
 
-    if (/^audio\//i.test(mimeType)) {
+    if (
+        /^audio\//i.test(
+            mimeType
+        )
+    ) {
         return "audio"
     }
 
@@ -1469,6 +1650,54 @@ function getCaption(
         source?.text ||
         ""
     )
+}
+
+function seenBefore(
+    conn,
+    key
+) {
+    const now =
+        Date.now()
+
+    const seen =
+        conn._viewOnceMonitorSeen ||
+        (
+            conn._viewOnceMonitorSeen =
+                new Map()
+        )
+
+    for (
+        const [id, at] of seen
+    ) {
+        if (
+            !at ||
+            now - at >
+                10 * 60 * 1000
+        ) {
+            seen.delete(id)
+        }
+    }
+
+    if (seen.has(key)) {
+        return true
+    }
+
+    seen.set(
+        key,
+        now
+    )
+
+    while (
+        seen.size > 250
+    ) {
+        seen.delete(
+            seen.keys()
+                .next()
+                .value
+        )
+    }
+
+    return false
 }
 
 async function safeName(
