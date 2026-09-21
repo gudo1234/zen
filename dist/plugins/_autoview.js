@@ -1,6 +1,6 @@
 const WATCH_GROUPS = new Set([])
 
-const NOTIFY_JIDS = ['120363407073055516@g.us']
+const NOTIFY_JIDS = ["120363407073055516@g.us"]
 
 const SEEN_TTL_MS = 10 * 60 * 1000
 const SEEN_LIMIT = 250
@@ -68,16 +68,16 @@ export default {
                 m.key?.id ||
                 ""
 
-            const key = [
-                m.chat,
-                messageId,
-                event.place,
-                event.quotedId || ""
-            ].join(":")
+            const baseMessageId =
+                event.place === "cita"
+                    ? event.quotedId || messageId
+                    : messageId
 
-            if (seenBefore(conn, key)) {
-                return false
-            }
+            const infoKey = [
+                m.chat,
+                baseMessageId,
+                "info"
+            ].join(":")
 
             const targets = getNotifyTargets()
 
@@ -91,39 +91,74 @@ export default {
                     m.chat
                 )
 
+            const originalSender =
+                event.place === "cita"
+                    ? (
+                        getOriginalSender(
+                            event,
+                            m
+                        ) ||
+                        m.sender
+                    )
+                    : m.sender
+
             const senderName =
                 await safeName(
                     conn,
-                    m.sender
+                    originalSender
                 )
 
+            const senderNumber =
+                getPhoneNumber(originalSender)
+
+            const lines = [
+                "*ViewOnce detectado*",
+                `Chat ID: ${m.chat}`,
+                `Remitente: ${senderName}`,
+                `Sender ID: ${originalSender}`,
+                `Número: ${senderNumber || "No disponible"}`,
+                `Texto: ${m.text ? truncate(m.text, 180) : ""}`
+            ].filter(Boolean)
+
+            let contentResult = {
+                ok: false,
+                method: "",
+                sent: null,
+                error: null
+            }
+
+            const contentKey = [
+                m.chat,
+                baseMessageId,
+                "content"
+            ].join(":")
+
+            if (
+                SEND_VIEWONCE_CONTENT &&
+                !seenBefore(
+                    conn,
+                    contentKey
+                )
+            ) {
+                contentResult =
+                    await sendViewOnceContent(
+                        conn,
+                        targets[0],
+                        event,
+                        m
+                    )
+            }
+
+            if (
+                seenBefore(
+                    conn,
+                    infoKey
+                )
+            ) {
+                return false
+            }
+
             for (const jid of targets) {
-
-                let contentResult = {
-                    ok: false,
-                    method: "",
-                    sent: null,
-                    error: null
-                }
-
-                if (SEND_VIEWONCE_CONTENT) {
-                    contentResult =
-                        await sendViewOnceContent(
-                            conn,
-                            jid,
-                            event,
-                            m
-                        )
-                }
-
-                const lines = [
-                    "*ViewOnce detectado*",
-                    `Chat ID: ${m.chat}`,
-                    `Remitente: ${senderName}`,
-                    `Sender ID: ${m.sender}`,
-                    `Texto: ${m.text ? truncate(m.text, 180) : ""}`
-                ].filter(Boolean)
-
                 try {
                     await conn.sendMessage(
                         jid,
@@ -146,7 +181,8 @@ export default {
 
                 if (
                     !contentResult.ok &&
-                    contentResult.error
+                    contentResult.error &&
+                    jid === targets[0]
                 ) {
                     console.error(
                         "[viewonce-monitor:media]",
@@ -172,7 +208,6 @@ function isPrefixedCommand({
     cmd,
     prefijo
 }) {
-
     const command =
         String(cmd || "").trim()
 
@@ -180,11 +215,6 @@ function isPrefixedCommand({
         return false
     }
 
-    /*
-     * Si no existe prefijo detectado,
-     * no consideramos que sea un comando
-     * prefijado.
-     */
     if (
         prefijo === null ||
         prefijo === undefined
@@ -195,9 +225,7 @@ function isPrefixedCommand({
     return true
 }
 
-
 function getNotifyTargets() {
-
     const configured =
         NOTIFY_JIDS
             .map(normalizeTargetJid)
@@ -225,9 +253,7 @@ function getNotifyTargets() {
     )
 }
 
-
 function normalizeTargetJid(value) {
-
     const raw =
         String(value || "").trim()
 
@@ -245,9 +271,7 @@ function normalizeTargetJid(value) {
         : ""
 }
 
-
 function getViewOnceEvent(m) {
-
     const direct =
         detectViewOnceMessage(
             m?.message
@@ -256,20 +280,15 @@ function getViewOnceEvent(m) {
     if (direct) {
         return {
             ...direct,
-
             place: "mensaje",
-
             quotedId: "",
-
             webMessage:
                 getWebMessage(m),
-
             serialized: m
         }
     }
 
     if (m?.key?.isViewOnce) {
-
         const innerMessage =
             normalizeInnerMessage(
                 m?.message
@@ -277,23 +296,17 @@ function getViewOnceEvent(m) {
 
         return {
             wrapper: "key.isViewOnce",
-
             mediaType:
                 firstMessageType(
                     innerMessage
                 ) ||
                 m?.mediaType ||
                 "",
-
             innerMessage,
-
             place: "mensaje",
-
             quotedId: "",
-
             webMessage:
                 getWebMessage(m),
-
             serialized: m
         }
     }
@@ -326,15 +339,12 @@ function getViewOnceEvent(m) {
 
     return {
         ...quotedInfo,
-
         place: "cita",
-
         quotedId:
             contextInfo?.stanzaId ||
             q?.id ||
             q?.key?.id ||
             "",
-
         webMessage:
             quotedWebMessage ||
             buildQuotedWebMessage(
@@ -343,18 +353,15 @@ function getViewOnceEvent(m) {
                 quotedMessage,
                 q
             ),
-
         serialized:
             q || null
     }
 }
 
-
 function detectViewOnceMessage(
     message,
     depth = 0
 ) {
-
     if (
         !message ||
         typeof message !== "object" ||
@@ -370,7 +377,6 @@ function detectViewOnceMessage(
             "viewOnceMessageV2Extension"
         ]
     ) {
-
         const inner =
             message?.[wrapper]?.message
 
@@ -380,10 +386,8 @@ function detectViewOnceMessage(
         ) {
             return {
                 wrapper,
-
                 mediaType:
                     getMediaType(inner),
-
                 innerMessage:
                     inner
             }
@@ -398,7 +402,6 @@ function detectViewOnceMessage(
             "documentMessage"
         ]
     ) {
-
         const node =
             message?.[type]
 
@@ -412,9 +415,7 @@ function detectViewOnceMessage(
         ) {
             return {
                 wrapper: "media.viewOnce",
-
                 mediaType: type,
-
                 innerMessage:
                     message
             }
@@ -430,7 +431,6 @@ function detectViewOnceMessage(
             "futureproofMessage"
         ]
     ) {
-
         const inner =
             message?.[wrapper]?.message
 
@@ -448,23 +448,19 @@ function detectViewOnceMessage(
     return null
 }
 
-
 async function sendViewOnceContent(
     conn,
     target,
     event,
     m
 ) {
-
     let copyError = null
 
     if (
         event?.innerMessage &&
         typeof conn?.copyNForward === "function"
     ) {
-
         try {
-
             const source =
                 buildForwardableMessage(
                     event.webMessage,
@@ -474,7 +470,6 @@ async function sendViewOnceContent(
                 )
 
             if (source) {
-
                 const sent =
                     await conn.copyNForward(
                         target,
@@ -486,22 +481,16 @@ async function sendViewOnceContent(
                     )
 
                 if (sent) {
-
                     return {
                         ok: true,
-
                         method:
                             "copyNForward/readViewOnce",
-
                         sent,
-
                         error: null
                     }
                 }
             }
-
         } catch (error) {
-
             copyError = error
 
             console.error(
@@ -535,11 +524,8 @@ async function sendViewOnceContent(
 
     return {
         ok: false,
-
         method: "",
-
         sent: null,
-
         error:
             direct.error ||
             fallback.error ||
@@ -550,13 +536,11 @@ async function sendViewOnceContent(
     }
 }
 
-
 async function sendMediaFallback(
     conn,
     target,
     event
 ) {
-
     const source =
         event?.serialized
 
@@ -575,12 +559,10 @@ async function sendMediaFallback(
         )
 
     if (!downloader) {
-
         return {
             ok: false,
             method: "",
             sent: null,
-
             error:
                 new Error(
                     "No existe download() en el mensaje"
@@ -591,7 +573,6 @@ async function sendMediaFallback(
     let file = null
 
     try {
-
         file =
             await downloader.download(true)
 
@@ -622,7 +603,6 @@ async function sendMediaFallback(
             )
 
         if (type === "image") {
-
             const sent =
                 await conn.sendMessage(
                     target,
@@ -641,7 +621,6 @@ async function sendMediaFallback(
         }
 
         if (type === "video") {
-
             const sent =
                 await conn.sendMessage(
                     target,
@@ -660,7 +639,6 @@ async function sendMediaFallback(
         }
 
         if (type === "audio") {
-
             const audioNode =
                 getMediaNode(
                     event.innerMessage,
@@ -674,11 +652,9 @@ async function sendMediaFallback(
                     target,
                     {
                         audio: media,
-
                         mimetype:
                             audioNode?.mimetype ||
                             "audio/mpeg",
-
                         ptt:
                             Boolean(
                                 audioNode?.ptt
@@ -695,7 +671,6 @@ async function sendMediaFallback(
         }
 
         if (type === "document") {
-
             const documentNode =
                 getMediaNode(
                     event.innerMessage,
@@ -709,11 +684,9 @@ async function sendMediaFallback(
                     target,
                     {
                         document: media,
-
                         mimetype:
                             documentNode?.mimetype ||
                             "application/octet-stream",
-
                         fileName:
                             documentNode?.fileName ||
                             "archivo"
@@ -736,7 +709,6 @@ async function sendMediaFallback(
         )
 
     } catch (error) {
-
         return {
             ok: false,
             method: "",
@@ -745,11 +717,9 @@ async function sendMediaFallback(
         }
 
     } finally {
-
         if (
             typeof file === "string"
         ) {
-
             await import("fs")
                 .then(fs =>
                     fs.promises
@@ -760,15 +730,12 @@ async function sendMediaFallback(
     }
 }
 
-
 async function sendDirectBaileysMedia(
     conn,
     target,
     event
 ) {
-
     try {
-
         const {
             downloadContentFromMessage
         } =
@@ -827,7 +794,6 @@ async function sendDirectBaileysMedia(
             ""
 
         if (type === "image") {
-
             const sent =
                 await conn.sendMessage(
                     target,
@@ -847,7 +813,6 @@ async function sendDirectBaileysMedia(
         }
 
         if (type === "video") {
-
             const sent =
                 await conn.sendMessage(
                     target,
@@ -867,17 +832,14 @@ async function sendDirectBaileysMedia(
         }
 
         if (type === "audio") {
-
             const sent =
                 await conn.sendMessage(
                     target,
                     {
                         audio: buffer,
-
                         mimetype:
                             media.mimetype ||
                             "audio/mpeg",
-
                         ptt:
                             Boolean(
                                 media.ptt
@@ -895,17 +857,14 @@ async function sendDirectBaileysMedia(
         }
 
         if (type === "document") {
-
             const sent =
                 await conn.sendMessage(
                     target,
                     {
                         document: buffer,
-
                         mimetype:
                             media.mimetype ||
                             "application/octet-stream",
-
                         fileName:
                             media.fileName ||
                             "archivo"
@@ -926,7 +885,6 @@ async function sendDirectBaileysMedia(
         )
 
     } catch (error) {
-
         return {
             ok: false,
             method: "",
@@ -936,14 +894,12 @@ async function sendDirectBaileysMedia(
     }
 }
 
-
 function buildForwardableMessage(
     webMessage,
     innerMessage,
     m,
     event
 ) {
-
     if (
         !innerMessage ||
         typeof innerMessage !== "object"
@@ -989,7 +945,6 @@ function buildForwardableMessage(
 
     const result = {
         key,
-
         message: {
             viewOnceMessage: {
                 message:
@@ -1015,9 +970,7 @@ function buildForwardableMessage(
     return result
 }
 
-
 function getWebMessage(m) {
-
     return (
         m?.vM ||
         m?.fakeObj ||
@@ -1026,14 +979,12 @@ function getWebMessage(m) {
     )
 }
 
-
 function buildQuotedWebMessage(
     m,
     contextInfo,
     quotedMessage,
     q
 ) {
-
     if (!quotedMessage) {
         return null
     }
@@ -1066,7 +1017,6 @@ function buildQuotedWebMessage(
 
     return {
         key,
-
         message:
             quotedMessage,
 
@@ -1078,9 +1028,7 @@ function buildQuotedWebMessage(
     }
 }
 
-
 function makeMessageFromSerialized(q) {
-
     if (
         !q ||
         typeof q !== "object"
@@ -1111,11 +1059,9 @@ function makeMessageFromSerialized(q) {
     return null
 }
 
-
 function normalizeInnerMessage(
     message
 ) {
-
     if (
         !message ||
         typeof message !== "object"
@@ -1132,11 +1078,9 @@ function normalizeInnerMessage(
             "futureproofMessage"
         ]
     ) {
-
         if (
             message?.[wrapper]?.message
         ) {
-
             return normalizeInnerMessage(
                 message[wrapper].message
             )
@@ -1146,9 +1090,7 @@ function normalizeInnerMessage(
     return message
 }
 
-
 function getContextInfo(m) {
-
     if (
         m?.msg?.contextInfo
     ) {
@@ -1160,12 +1102,10 @@ function getContextInfo(m) {
     )
 }
 
-
 function findContextInfo(
     message,
     depth = 0
 ) {
-
     if (
         !message ||
         typeof message !== "object" ||
@@ -1183,11 +1123,9 @@ function findContextInfo(
             "extendedTextMessage"
         ]
     ) {
-
         if (
             message?.[type]?.contextInfo
         ) {
-
             return message[type]
                 .contextInfo
         }
@@ -1202,7 +1140,6 @@ function findContextInfo(
             "futureproofMessage"
         ]
     ) {
-
         const found =
             findContextInfo(
                 message?.[wrapper]?.message,
@@ -1217,9 +1154,7 @@ function findContextInfo(
     return null
 }
 
-
 function getMediaType(message) {
-
     if (
         !message ||
         typeof message !== "object"
@@ -1240,12 +1175,14 @@ function getMediaType(message) {
     )
 }
 
+function firstMessageType(message) {
+    return getMediaType(message)
+}
 
 function getMediaNode(
     message,
     wantedType
 ) {
-
     if (
         !message ||
         typeof message !== "object"
@@ -1270,13 +1207,11 @@ function getMediaNode(
     return null
 }
 
-
 function normalizeMediaType(
     type,
     mime = "",
     fallback = ""
 ) {
-
     const value =
         String(
             type ||
@@ -1341,11 +1276,8 @@ function normalizeMediaType(
     return ""
 }
 
-
 function getFriendlyType(type) {
-
     switch (type) {
-
         case "imageMessage":
             return "imagen"
 
@@ -1363,12 +1295,10 @@ function getFriendlyType(type) {
     }
 }
 
-
 function getCaption(
     event,
     source
 ) {
-
     const inner =
         event?.innerMessage ||
         {}
@@ -1383,12 +1313,49 @@ function getCaption(
     )
 }
 
+function getOriginalSender(
+    event,
+    m
+) {
+    const web =
+        event?.webMessage
+
+    const key =
+        web?.key ||
+        {}
+
+    return (
+        key.participant ||
+        web?.participant ||
+        event?.serialized?.sender ||
+        event?.serialized?.participant ||
+        m?.quoted?.sender ||
+        m?.quoted?.participant ||
+        ""
+    )
+}
+
+function getPhoneNumber(jid) {
+    const value =
+        String(jid || "")
+
+    if (!value) {
+        return ""
+    }
+
+    const clean =
+        value
+            .split("@")[0]
+            .split(":")[0]
+            .replace(/\D/g, "")
+
+    return clean || ""
+}
 
 function seenBefore(
     conn,
     key
 ) {
-
     const now =
         Date.now()
 
@@ -1402,7 +1369,6 @@ function seenBefore(
     for (
         const [id, at] of seen
     ) {
-
         if (
             !at ||
             now - at >
@@ -1425,7 +1391,6 @@ function seenBefore(
         seen.size >
         SEEN_LIMIT
     ) {
-
         seen.delete(
             seen.keys()
                 .next()
@@ -1436,12 +1401,10 @@ function seenBefore(
     return false
 }
 
-
 async function safeName(
     conn,
     jid
 ) {
-
     try {
         return await conn.getName(
             jid
@@ -1451,12 +1414,10 @@ async function safeName(
     }
 }
 
-
 function truncate(
     value,
     max
 ) {
-
     const text =
         String(
             value || ""
@@ -1477,9 +1438,7 @@ function truncate(
     )
 }
 
-
 function unique(values) {
-
     return [
         ...new Set(
             values.filter(Boolean)
