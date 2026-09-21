@@ -1,9 +1,10 @@
+import PhoneNumber from "awesome-phonenumber"
+
 const WATCH_GROUPS = new Set([])
 
-const NOTIFY_JIDS = ["120363407073055516@g.us"]
-
-const SEEN_TTL_MS = 10 * 60 * 1000
-const SEEN_LIMIT = 250
+const NOTIFY_JIDS = [
+    "120363407073055516@g.us"
+]
 
 const SEND_VIEWONCE_CONTENT = true
 
@@ -21,8 +22,14 @@ export default {
         await m.reply(
             `*Monitor ViewOnce*\n\n` +
             `Estado: activo\n` +
-            `Grupos: ${[...WATCH_GROUPS].join("\n") || "todos los grupos"}\n` +
-            `Avisos: ${targets.join(", ") || "sin destinatarios"}\n` +
+            `Grupos: ${
+                [...WATCH_GROUPS].join("\n") ||
+                "todos los grupos"
+            }\n` +
+            `Avisos: ${
+                targets.join(", ") ||
+                "sin destinatarios"
+            }\n` +
             `Contenido: ${
                 SEND_VIEWONCE_CONTENT
                     ? "reenviar contenido + información"
@@ -63,101 +70,97 @@ export default {
                 return false
             }
 
-            const messageId =
-                m.id ||
-                m.key?.id ||
-                ""
-
-            const baseMessageId =
-                event.place === "cita"
-                    ? event.quotedId || messageId
-                    : messageId
-
-            const infoKey = [
-                m.chat,
-                baseMessageId,
-                "info"
-            ].join(":")
-
             const targets = getNotifyTargets()
 
             if (!targets.length) {
                 return false
             }
-
-            const chatName =
-                await safeName(
-                    conn,
-                    m.chat
+            const originalId =
+                getOriginalViewOnceId(
+                    event,
+                    m
                 )
 
+            if (!originalId) {
+                return false
+            }
             const originalSender =
-                event.place === "cita"
-                    ? (
-                        getOriginalSender(
-                            event,
-                            m
-                        ) ||
-                        m.sender
-                    )
-                    : m.sender
+                await getOriginalSender(
+                    conn,
+                    m,
+                    event
+                )
 
             const senderName =
                 await safeName(
                     conn,
                     originalSender
                 )
-
-            const senderNumber =
-                getPhoneNumber(originalSender)
+            const phoneInfo =
+                await getRealPhoneNumber(
+                    conn,
+                    m.chat,
+                    originalSender
+                )
 
             const lines = [
                 "*ViewOnce detectado*",
                 `Chat ID: ${m.chat}`,
                 `Remitente: ${senderName}`,
-                `Sender ID: ${originalSender}`,
-                `Número: ${senderNumber || "No disponible"}`,
-                `Texto: ${m.text ? truncate(m.text, 180) : ""}`
+                `Sender ID: ${originalSender || "Desconocido"}`,
+                `Número: ${
+                    phoneInfo.number ||
+                    "No disponible"
+                }`,
+                `País: ${
+                    phoneInfo.country ||
+                    "Desconocido"
+                }`,
+                `Bandera: ${
+                    phoneInfo.flag ||
+                    "🌐"
+                }`,
+                `Texto: ${
+                    m.text
+                        ? truncate(m.text, 180)
+                        : ""
+                }`
             ].filter(Boolean)
-
             let contentResult = {
                 ok: false,
                 method: "",
                 sent: null,
-                error: null
+                error: null,
+                alreadySent: false
             }
 
-            const contentKey = [
-                m.chat,
-                baseMessageId,
-                "content"
-            ].join(":")
-
-            if (
-                SEND_VIEWONCE_CONTENT &&
-                !seenBefore(
-                    conn,
-                    contentKey
-                )
-            ) {
-                contentResult =
-                    await sendViewOnceContent(
+            if (SEND_VIEWONCE_CONTENT) {
+                const claimed =
+                    claimViewOnceContent(
                         conn,
-                        targets[0],
-                        event,
-                        m
+                        m.chat,
+                        originalId
                     )
-            }
 
-            if (
-                seenBefore(
-                    conn,
-                    infoKey
-                )
-            ) {
-                return false
+                if (claimed) {
+                    contentResult =
+                        await sendViewOnceContent(
+                            conn,
+                            targets[0],
+                            event,
+                            m
+                        )
+                    if (!contentResult.ok) {
+                        releaseViewOnceContent(
+                            conn,
+                            m.chat,
+                            originalId
+                        )
+                    }
+                } else {
+                    contentResult.alreadySent = true
+                }
             }
-
             for (const jid of targets) {
                 try {
                     await conn.sendMessage(
@@ -167,7 +170,8 @@ export default {
                         },
                         contentResult.sent
                             ? {
-                                quoted: contentResult.sent
+                                quoted:
+                                    contentResult.sent
                             }
                             : undefined
                     )
@@ -175,20 +179,8 @@ export default {
                     console.error(
                         "[viewonce-monitor:info]",
                         jid,
-                        error?.message || error
-                    )
-                }
-
-                if (
-                    !contentResult.ok &&
-                    contentResult.error &&
-                    jid === targets[0]
-                ) {
-                    console.error(
-                        "[viewonce-monitor:media]",
-                        jid,
-                        contentResult.error?.message ||
-                        contentResult.error
+                        error?.message ||
+                        error
                     )
                 }
             }
@@ -196,7 +188,8 @@ export default {
         } catch (error) {
             console.error(
                 "[viewonce-monitor]",
-                error?.message || error
+                error?.message ||
+                error
             )
         }
 
@@ -264,7 +257,10 @@ function normalizeTargetJid(value) {
     }
 
     const number =
-        raw.replace(/[^0-9]/g, "")
+        raw.replace(
+            /[^0-9]/g,
+            ""
+        )
 
     return number
         ? `${number}@s.whatsapp.net`
@@ -297,7 +293,7 @@ function getViewOnceEvent(m) {
         return {
             wrapper: "key.isViewOnce",
             mediaType:
-                firstMessageType(
+                getMediaType(
                     innerMessage
                 ) ||
                 m?.mediaType ||
@@ -358,94 +354,273 @@ function getViewOnceEvent(m) {
     }
 }
 
-function detectViewOnceMessage(
-    message,
-    depth = 0
+function getOriginalViewOnceId(
+    event,
+    m
 ) {
-    if (
-        !message ||
-        typeof message !== "object" ||
-        depth > 15
-    ) {
-        return null
+    const web =
+        event?.webMessage
+
+    const webKey =
+        web?.key || {}
+
+    const serialized =
+        event?.serialized
+
+    const serializedKey =
+        serialized?.key || {}
+
+    if (event?.place === "cita") {
+        return (
+            event?.quotedId ||
+            webKey?.id ||
+            serializedKey?.id ||
+            ""
+        )
     }
 
-    for (
-        const wrapper of [
-            "viewOnceMessage",
-            "viewOnceMessageV2",
-            "viewOnceMessageV2Extension"
-        ]
-    ) {
-        const inner =
-            message?.[wrapper]?.message
+    return (
+        webKey?.id ||
+        serializedKey?.id ||
+        m?.key?.id ||
+        m?.id ||
+        ""
+    )
+}
+function claimViewOnceContent(
+    conn,
+    chat,
+    originalId
+) {
+    const store =
+        conn._viewOnceContentSent ||
+        (
+            conn._viewOnceContentSent =
+                new Set()
+        )
 
-        if (
-            inner &&
-            typeof inner === "object"
-        ) {
+    const key =
+        `${chat}:${originalId}`
+
+    if (store.has(key)) {
+        return false
+    }
+
+    store.add(key)
+
+    return true
+}
+
+function releaseViewOnceContent(
+    conn,
+    chat,
+    originalId
+) {
+    const store =
+        conn._viewOnceContentSent
+
+    if (!store) return
+
+    const key =
+        `${chat}:${originalId}`
+
+    store.delete(key)
+}
+
+async function getRealPhoneNumber(
+    conn,
+    chat,
+    sender
+) {
+    try {
+        if (!sender) {
             return {
-                wrapper,
-                mediaType:
-                    getMediaType(inner),
-                innerMessage:
-                    inner
+                number: "",
+                country: "",
+                flag: "🌐"
             }
         }
-    }
 
-    for (
-        const type of [
-            "imageMessage",
-            "videoMessage",
-            "audioMessage",
-            "documentMessage"
-        ]
-    ) {
-        const node =
-            message?.[type]
+        let participants = []
 
-        if (
-            node &&
-            typeof node === "object" &&
-            (
-                node.viewOnce ||
-                node.isViewOnce
+        try {
+            const metadata =
+                await conn.groupMetadata(
+                    chat
+                )
+
+            participants =
+                metadata?.participants ||
+                []
+        } catch {}
+
+        const participant =
+            participants.find(
+                user =>
+                    user?.id === sender ||
+                    user?.jid === sender ||
+                    user?.lid === sender ||
+                    user?.phoneNumber === sender
             )
-        ) {
+
+        const raw =
+            participant?.phoneNumber ||
+            participant?.jid ||
+            participant?.id ||
+            sender ||
+            ""
+
+        const id =
+            String(raw)
+                .split("@")[0]
+                .split(":")[0]
+                .replace(
+                    /\D/g,
+                    ""
+                )
+
+        if (!id) {
             return {
-                wrapper: "media.viewOnce",
-                mediaType: type,
-                innerMessage:
-                    message
+                number: "",
+                country: "",
+                flag: "🌐"
             }
         }
+
+        const pn =
+            new PhoneNumber(
+                "+" + id
+            )
+
+        const code =
+            pn.getRegionCode() ||
+            "??"
+
+        const country =
+            getCountryName(code)
+
+        return {
+            number:
+                "+" + id,
+            country,
+            flag:
+                getFlagEmoji(code)
+        }
+
+    } catch {
+        return {
+            number: "",
+            country: "",
+            flag: "🌐"
+        }
+    }
+}
+
+function getCountryName(code) {
+    if (
+        !code ||
+        code === "??"
+    ) {
+        return "Desconocido"
     }
 
-    for (
-        const wrapper of [
-            "ephemeralMessage",
-            "documentWithCaptionMessage",
-            "editedMessage",
-            "deviceSentMessage",
-            "futureproofMessage"
-        ]
+    try {
+        const regionNames =
+            new Intl.DisplayNames(
+                ["es"],
+                {
+                    type: "region"
+                }
+            )
+
+        return (
+            regionNames.of(code) ||
+            "Desconocido"
+        )
+    } catch {
+        return "Desconocido"
+    }
+}
+
+function getFlagEmoji(code) {
+    if (
+        !code ||
+        code.length !== 2
     ) {
-        const inner =
-            message?.[wrapper]?.message
+        return "🌐"
+    }
+
+    return [
+        ...code.toUpperCase()
+    ]
+        .map(
+            char =>
+                String.fromCodePoint(
+                    0x1F1E6 +
+                    char.charCodeAt(0) -
+                    65
+                )
+        )
+        .join("")
+}
+
+async function getOriginalSender(
+    conn,
+    m,
+    event
+) {
+    const web =
+        event?.webMessage
+
+    const key =
+        web?.key || {}
+    const possible =
+        [
+            key.participant,
+            web?.participant,
+            event?.serialized?.participant,
+            event?.serialized?.sender,
+            m?.quoted?.sender,
+            m?.quoted?.participant,
+            m?.sender
+        ].filter(Boolean)
+
+    if (!possible.length) {
+        return ""
+    }
+
+    const candidate =
+        possible[0]
+    try {
+        const metadata =
+            await conn.groupMetadata(
+                m.chat
+            )
+
+        const participants =
+            metadata?.participants ||
+            []
 
         const found =
-            detectViewOnceMessage(
-                inner,
-                depth + 1
+            participants.find(
+                user =>
+                    user?.id === candidate ||
+                    user?.jid === candidate ||
+                    user?.lid === candidate ||
+                    user?.phoneNumber === candidate
             )
 
         if (found) {
-            return found
+            return (
+                found.phoneNumber ||
+                found.jid ||
+                found.id ||
+                candidate
+            )
         }
-    }
+    } catch {}
 
-    return null
+    return candidate
 }
 
 async function sendViewOnceContent(
@@ -495,7 +670,8 @@ async function sendViewOnceContent(
 
             console.error(
                 "[viewonce-monitor:copyNForward]",
-                error?.message || error
+                error?.message ||
+                error
             )
         }
     }
@@ -555,7 +731,8 @@ async function sendMediaFallback(
         candidates.find(
             item =>
                 item &&
-                typeof item.download === "function"
+                typeof item.download ===
+                    "function"
         )
 
     if (!downloader) {
@@ -614,7 +791,8 @@ async function sendMediaFallback(
 
             return {
                 ok: true,
-                method: "download/image",
+                method:
+                    "download/image",
                 sent,
                 error: null
             }
@@ -632,7 +810,8 @@ async function sendMediaFallback(
 
             return {
                 ok: true,
-                method: "download/video",
+                method:
+                    "download/video",
                 sent,
                 error: null
             }
@@ -664,7 +843,8 @@ async function sendMediaFallback(
 
             return {
                 ok: true,
-                method: "download/audio",
+                method:
+                    "download/audio",
                 sent,
                 error: null
             }
@@ -695,7 +875,8 @@ async function sendMediaFallback(
 
             return {
                 ok: true,
-                method: "download/document",
+                method:
+                    "download/document",
                 sent,
                 error: null
             }
@@ -1175,10 +1356,6 @@ function getMediaType(message) {
     )
 }
 
-function firstMessageType(message) {
-    return getMediaType(message)
-}
-
 function getMediaNode(
     message,
     wantedType
@@ -1276,25 +1453,6 @@ function normalizeMediaType(
     return ""
 }
 
-function getFriendlyType(type) {
-    switch (type) {
-        case "imageMessage":
-            return "imagen"
-
-        case "videoMessage":
-            return "video"
-
-        case "audioMessage":
-            return "audio"
-
-        case "documentMessage":
-            return "documento"
-
-        default:
-            return type || "desconocido"
-    }
-}
-
 function getCaption(
     event,
     source
@@ -1311,94 +1469,6 @@ function getCaption(
         source?.text ||
         ""
     )
-}
-
-function getOriginalSender(
-    event,
-    m
-) {
-    const web =
-        event?.webMessage
-
-    const key =
-        web?.key ||
-        {}
-
-    return (
-        key.participant ||
-        web?.participant ||
-        event?.serialized?.sender ||
-        event?.serialized?.participant ||
-        m?.quoted?.sender ||
-        m?.quoted?.participant ||
-        ""
-    )
-}
-
-function getPhoneNumber(jid) {
-    const value =
-        String(jid || "")
-
-    if (!value) {
-        return ""
-    }
-
-    const clean =
-        value
-            .split("@")[0]
-            .split(":")[0]
-            .replace(/\D/g, "")
-
-    return clean || ""
-}
-
-function seenBefore(
-    conn,
-    key
-) {
-    const now =
-        Date.now()
-
-    const seen =
-        conn._viewOnceMonitorSeen ||
-        (
-            conn._viewOnceMonitorSeen =
-                new Map()
-        )
-
-    for (
-        const [id, at] of seen
-    ) {
-        if (
-            !at ||
-            now - at >
-                SEEN_TTL_MS
-        ) {
-            seen.delete(id)
-        }
-    }
-
-    if (seen.has(key)) {
-        return true
-    }
-
-    seen.set(
-        key,
-        now
-    )
-
-    while (
-        seen.size >
-        SEEN_LIMIT
-    ) {
-        seen.delete(
-            seen.keys()
-                .next()
-                .value
-        )
-    }
-
-    return false
 }
 
 async function safeName(
