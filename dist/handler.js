@@ -5,6 +5,7 @@ import { smsg } from "./lib/simple.js";
 import { logCommand } from "./lib/logger.js";
 import { loadPlugins, getPlugin, getPlugins, runBefore, runAfter } from "./lib/plugins.js";
 import { getPrefix, db, getBotSettings } from "./lib/db.js";
+
 export const OWNERS = [
     { num: "50492280729", lid: "76803058192389@lid" },
     { num: "5492266613038", lid: "35060220747880@lid" },
@@ -12,6 +13,7 @@ export const OWNERS = [
     { num: "5356666669", lid: "48223943188564@lid" }
     //{ num: "50488723207", lid: "94880558792752@lid" }
 ];
+
 async function computeStickerHash(buffer) {
     const crypto = await import('crypto');
     try {
@@ -30,6 +32,7 @@ async function computeStickerHash(buffer) {
         return crypto.createHash('sha256').update(buffer).digest('hex');
     }
 }
+
 /*interface Command {
   name: string | string[];  // Si name es array, ajusta según tu código
   command?: string[]
@@ -72,13 +75,16 @@ async function getGroupMetadataForce(sock, jid, force = false) {
     }
     return meta;
 }
+
 loadPlugins();
+
 function cleanNumber(jid) {
     return (jid || "")
         .split("@")[0]
         .replace(/:\d+$/, "")
         .replace(/[^0-9]/g, "");
 }
+
 async function getGroupMetadataCached(sock, jid) {
     let meta = groupCache.get(jid);
     if (!meta) {
@@ -87,6 +93,7 @@ async function getGroupMetadataCached(sock, jid) {
     }
     return meta;
 }
+
 export async function participantsUpdate(conn, update) {
     const { id: groupId, participants, action, author } = update;
     const botId = conn.user?.id?.split(":")[0] || "mainbot";
@@ -121,6 +128,7 @@ export async function participantsUpdate(conn, update) {
         const metadata = await getGroupMetadataCached(conn, groupId);
         const groupName = metadata.subject || "Grupo";
         const groupDesc = metadata.desc || "*ᴜɴ ɢʀᴜᴘᴏ ɢᴇɴɪᴀ😸*\n *sɪɴ ʀᴇɢʟᴀ 😉*";
+        
         for (const p of participants) {
             const participantId = typeof p === "string" ? p : (p.id || p.phoneNumber || "");
             if (!participantId)
@@ -130,6 +138,7 @@ export async function participantsUpdate(conn, update) {
             let text = "";
             let isPhoto = false;
             let ppUrl = "https://telegra.ph/file/39fb047cdf23c790e0146.jpg";
+           
             // === ANTIFAKE ===
             if (action === "add" && settings.antifake) {
                 const prefixes = Array.isArray(settings.antifake_prefixes) ? settings.antifake_prefixes : typeof settings.antifake_prefixes === "string" ? settings.antifake_prefixes.split(/[,\s]+/).filter(p => p) : [];
@@ -169,6 +178,7 @@ export async function participantsUpdate(conn, update) {
                     continue;
                 }
             }
+            
             let title;
             let body;
             switch (action) {
@@ -183,6 +193,7 @@ export async function participantsUpdate(conn, update) {
                         ppUrl = await conn.profilePictureUrl(participantId, "image").catch(() => ppUrl);
                     }
                     break;
+               
                 case "remove":
                     const botIdForRemove = conn.user?.id?.split(":")[0] || "unknown";
                     await db.query(`UPDATE chats 
@@ -203,6 +214,7 @@ export async function participantsUpdate(conn, update) {
                         ppUrl = await conn.profilePictureUrl(participantId, "image").catch(() => ppUrl);
                     }
                     break;
+               
                 case "promote":
                     groupCache.del(groupId);
                     if (!settings.detect)
@@ -211,6 +223,7 @@ export async function participantsUpdate(conn, update) {
                     title = "NUEVO ADMIN 🥳";
                     body = "Ahora tiene admin";
                     break;
+               
                 case "demote":
                     groupCache.del(groupId);
                     if (!settings.detect)
@@ -278,6 +291,7 @@ export async function participantsUpdate(conn, update) {
         console.error("❌ Error en participantsUpdate:", e);
     }
 }
+
 export async function handleJoinRequest(conn, groupId, participantsRaw) {
     const myJid = (conn.user?.id || "").replace(/:\d+/, "");
     const res = await db.query(`SELECT auto_approve, antifake, antifake_prefixes, primary_bot
@@ -306,6 +320,7 @@ export async function handleJoinRequest(conn, groupId, participantsRaw) {
         await conn.groupRequestParticipantsUpdate(groupId, [jid], "approve");
     }
 }
+
 export async function groupsUpdate(conn, update) {
     const groupId = update.id;
     try {
@@ -418,6 +433,7 @@ export async function groupsUpdate(conn, update) {
         console.error("❌ Error en groupsUpdate:", e);
     }
 }
+
 //expires_at memory
 setInterval(async () => {
     try {
@@ -450,6 +466,7 @@ setInterval(async () => {
         console.error('❌ Error limpiando memorias expiradas:', err);
     }
 }, 300_000); // cada 5 minutos
+
 async function incrementCommand(cmd) {
     if (!cmd)
         return;
@@ -463,6 +480,7 @@ async function incrementCommand(cmd) {
         console.error("❌ Error contando comando:", e);
     }
 }
+
 export async function handler(conn, m) {
     if (!m.message)
         return;
@@ -470,10 +488,12 @@ export async function handler(conn, m) {
     //const botId = conn.isMainBot ? "mainbot" : `subbot:${(conn.user?.id || "").replace(/[^0-9]/g, "")}`
     const chatId = m.key.remoteJid;
     await smsg(conn, m);
+    
     const senderNumber = (m.sender || "").replace(/[^0-9]/g, "");
     const senderLid = m.lid?.trim() ? m.lid : null;
     const senderJid = senderNumber ? `${senderNumber}@s.whatsapp.net` : null;
     const esNumeroReal = senderJid && senderNumber.length >= 10 && senderNumber.length <= 15 && m.sender && m.sender.endsWith('@s.whatsapp.net');
+    
     try {
         if (esNumeroReal) {
             // ✅ Tiene número real - ACTUALIZAR si existe (SIN tocar registered)
@@ -517,6 +537,7 @@ export async function handler(conn, m) {
     catch (e) {
         console.error("❌ Error insertando usuario:", e);
     }
+    
     const botJid = (conn.user?.id || "").replace(/:\d+/, "");
     const botLid = conn.user?.lid || "";
     const botNumber = botJid.replace(/[^0-9]/g, "");
@@ -530,6 +551,7 @@ export async function handler(conn, m) {
     const isROwner = OWNERS.some(o => o.num === senderNumber || o.lid === m.lid);
     const isGroup = chatId.endsWith("@g.us");
     const isPrivate = !isGroup;
+    
     try {
         // Verificar si el chat existe
         const existing = await db.query('SELECT bot_data FROM chats WHERE group_id = $1', [chatId]);
@@ -564,6 +586,7 @@ export async function handler(conn, m) {
     catch (e) {
         console.error("❌ Error registrando chat:", e);
     }
+  
     //banchat global 
     try {
         const globalCheck = await db.query("SELECT banned, global_ban_exempt_groups, global_ban_exempt_users FROM bot_settings WHERE bot_id = $1 LIMIT 1", [botId]);
@@ -588,6 +611,7 @@ export async function handler(conn, m) {
     catch (e) {
         console.error("❌ Error verificando ban global:", e);
     }
+   
     //banchat
     try {
         const banCheck = await db.query("SELECT banned FROM chats WHERE group_id = $1", [chatId]);
@@ -604,8 +628,9 @@ export async function handler(conn, m) {
     catch (e) {
         console.error("❌ Error verificando ban:", e);
     }
-    //banuser
-   /* try {
+    
+ //banuser
+   try {
         console.log("senderJid:", senderJid);
         console.log("senderLid:", senderLid);
         console.log("senderNumber:", senderNumber);
@@ -620,7 +645,7 @@ export async function handler(conn, m) {
                 const warnings = data?.ban_warnings || 0;
                 const reason = data?.banned_reason || "Spam";
                 if (warnings < 4) {
-                    await conn.sendMessage(chatId, { text: `*⚠️ ESTAS BANEADO ⚠️*\n\n*• Motivo:* ${reason} (avisos: ${warnings}/3)\n\n*👉🏻 Puedes contactar al propietario del Bot si crees que se trata de un error o para charlar sobre tu desbaneo*\n\n👉 @573042648888\n👉 t.me/elrebelde21` }, { quoted: m });
+                    await conn.sendMessage(chatId, { text: `*⚠️ ESTAS BANEADO ⚠️*\n\n*• Motivo:* ${reason} (avisos: ${warnings}/3)\n\n*👉🏻 Puedes contactar al propietario del Bot si crees que se trata de un error o para charlar sobre tu desbaneo*\n\n👉 @50492280729` }, { quoted: m });
                     await db.query(`
           UPDATE usuarios SET ban_warnings = ban_warnings + 1 
           WHERE id = $1 OR lid = $1 OR id = $2 OR lid = $2
@@ -632,7 +657,8 @@ export async function handler(conn, m) {
     }
     catch (e) {
         console.error("❌ Error verificando ban de usuario:", e);
-    }*/
+    }
+    
     const messageContent = m.message?.ephemeralMessage?.message || m.message?.viewOnceMessage?.message || m.message;
     let text = "";
     if (messageContent?.conversation)
@@ -670,6 +696,7 @@ export async function handler(conn, m) {
     m.originalText = typeof text === "string" ? text : "";
     text = text.trim();
     m.text = typeof text === "string" ? text.trim() : "";
+    
     m.reply = async (text, footerText = null, mentions = []) => {
         const settings = await getBotSettings(botId);
         const jid = settings?.newsletter_jid || "120363285614743024@newsletter";
@@ -749,9 +776,11 @@ export async function handler(conn, m) {
     const mentions = await conn.parseMention(text)
     return conn.sendMessage(m.chat, {text, mentions, ...options }, { quoted: m })
     }*/
+   
     //self mode
     if (config.mode === "self" && !isOwner)
         return;
+    
     //contador
     if (isGroup && senderJid && !m.key.fromMe) {
         const msgType = Object.keys(m.message || {})[0];
@@ -776,6 +805,7 @@ export async function handler(conn, m) {
             }
         }
     }
+    
     //primarybot
     if (isGroup) {
         try {
@@ -800,6 +830,7 @@ export async function handler(conn, m) {
             console.error("⚠️ Error verificando bot principal:", e);
         }
     }
+    
     const rawPrefix = (await getPrefix(botId)) || "/";
     let prefixList = [];
     const parts = rawPrefix.split(",").map(p => p.trim()).filter(p => p !== "");
@@ -836,6 +867,7 @@ export async function handler(conn, m) {
             handledAsSetprefix = true;
         }
     }
+    
     // ============================================================
     // 🔥 PRIMERO: DETECTAR customPrefix (SIEMPRE)
     // ============================================================
@@ -914,6 +946,7 @@ export async function handler(conn, m) {
             }
         }
     }
+   
     const ctx = {
         conn,
         m,
@@ -1036,6 +1069,7 @@ export async function handler(conn, m) {
             return;
         }
     }
+  
     // En handler.ts, modifica la sección donde se buscan comandos personalizados:
     if (!plugin && prefijo && cmd) {
         // 🔥 CONVERTIR A MINÚSCULAS PARA COMPARAR
@@ -1088,6 +1122,7 @@ export async function handler(conn, m) {
             return executeCustomCommand(conn, m, cc);
         }
     }
+  
     // Función para ejecutar el comando personalizado - HACERLA ASYNC
     async function executeCustomCommand(conn, m, cc) {
         // Si es un sticker y tiene texto que empieza con ".", ejecutar el comando
@@ -1120,6 +1155,7 @@ export async function handler(conn, m) {
             }
         }
         const defaultText = `⚠️ El comando *${cc.cmd}* todavía no tiene contenido configurado.\n\n> Usar: .set${body} para configurar (solo admin o owner)`;
+      
         switch (cc.type) {
             case 'text':
                 return conn.sendMessage(m.chat, { text: cc.text || defaultText }, { quoted: m });
@@ -1158,6 +1194,7 @@ export async function handler(conn, m) {
         }
         return conn.sendMessage(m.chat, { text: cc.text || defaultText }, { quoted: m });
     }
+  
     // Detección de stickers
     if (m.message?.stickerMessage) {
         try {
@@ -1208,6 +1245,7 @@ export async function handler(conn, m) {
             console.error('❌ Error detectando sticker:', e);
         }
     }
+   
     if (!plugin && prefijo) {
         const allCmds = getPlugins().flatMap(p => Array.isArray(p.command) ? p.command : [p.name])
             .filter(Boolean)
@@ -1241,8 +1279,10 @@ export async function handler(conn, m) {
         }
         return;
     }
+  
     if (!plugin)
         return;
+   
     try {
         const user = m.pushName || senderNumber;
         let chatType = isGroup ? "Grupo" : "Privado";
@@ -1256,6 +1296,7 @@ export async function handler(conn, m) {
                 chatName = "Grupo";
             }
         }
+      
         logCommand({
             conn,
             sender: user,
@@ -1263,7 +1304,9 @@ export async function handler(conn, m) {
             isGroup: m.isGroup,
             command: prefijo + (cmd || "")
         });
+      
         await incrementCommand(cmd);
+        
         if (plugin.owner && !isOwner)
             return m.reply(null, m.e.warn + ` ${m.msg.owner}`);
         if (plugin.rowner && !isROwner)
@@ -1272,8 +1315,10 @@ export async function handler(conn, m) {
             return m.reply(null, m.e.warn + ` ${m.msg.group}`);
         if (plugin.private && !isPrivate)
             return m.reply(null, m.e.warn + ` ${m.msg.private}`);
+      
         let metadata = null;
         let isAdmin = false;
+       
         if (chatId.endsWith("@g.us")) {
             try {
                 metadata = await getGroupMetadataCached(conn, chatId);
@@ -1305,8 +1350,10 @@ export async function handler(conn, m) {
                 console.log("⚠️ No se pudo obtener metadata del grupo:", e.message);
             }
         }
+        
         if (plugin.admin && !isAdmin)
             return m.reply(null, m.e.warn + ` ${m.msg.admin}`);
+       
         if (plugin.premium && !isOwner) {
             const res = await db.query(`SELECT premium, premium_until FROM usuarios 
      WHERE id = $1 OR lid = $2
@@ -1322,7 +1369,7 @@ export async function handler(conn, m) {
                 return m.reply(null, `⚠️ Este comando solo puede usado por usuarios premium o mi owner`);
             }
         }
-        
+
 if (plugin.tags?.includes('nsfw') && m.isGroup) {
   const { rows } = await db.query('SELECT modohorny, nsfw_horario FROM chats WHERE group_id = $1', [chatId])
   const { modohorny = false, nsfw_horario = '00:00-07:00' } = rows[0] || {}
@@ -1380,6 +1427,7 @@ if (plugin.tags?.includes("econ")) {
                 console.error("⚠️ Error verificando modoadmin:", e);
             }
         }
+     
         if (plugin.register) {
             // Verificar si el registro está activado para este bot
             const configReg = await db.query("SELECT registro FROM bot_settings WHERE bot_id = $1", [botId]);
@@ -1421,6 +1469,7 @@ return;
                 console.error(err);
             }
         }
+      
         if (plugin.level) {
             try {
                 const result = await db.query('SELECT level FROM usuarios WHERE id = $1 OR lid = $1', [m.sender]);
@@ -1433,6 +1482,7 @@ return;
                 console.error(err);
             }
         }
+     
         if (plugin.limitPrem) {
             const tipo = config.tipo || "subbot";
             if (tipo === "subbot") {
@@ -1457,6 +1507,7 @@ return;
                 m.validarPeso = async () => true;
             }
         }
+     
         await plugin.run({
             conn,
             m,
@@ -1484,6 +1535,7 @@ await m.reply(null, `${plugin.limit} ${m.e.currency_name} ${m.e.currency_emoji} 
         await conn.sendMessage(chatId, { text: `${m.e.warn + m.msg.error}\n\n >>> ${err} <<<<` }, { quoted: m });
     }
 }
+
 // Verificar grupos expirados - SOLO para este bot
 export function verificarExpirados(conn) {
     const botId = conn.user?.id?.split(":")[0] || "unknown";
