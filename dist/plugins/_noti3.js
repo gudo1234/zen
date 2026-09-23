@@ -177,12 +177,12 @@ export default {
     name: ["noti3"],
 
     help: [
-        "noti3 <link grupo> | <texto> | <botón> | <sitio web>",
+        "noti3 <link grupo/canal> | <texto> | <botón> | <sitio web>",
         "noti3 <texto> | <botón> | <sitio web>"
     ],
 
     desc:
-        "Envía una notificación a un grupo con imagen, video o GIF y botón web.",
+        "Envía una notificación con imagen, video o GIF y botón web.",
 
     tags: ["g"],
 
@@ -199,7 +199,7 @@ export default {
         if (!text?.trim())
             return m.reply(
                 `${m.e.warn} Usa:\n\n` +
-                `${prefijo + cmd} <link grupo> | <texto> | <botón> | <sitio web>\n` +
+                `${prefijo + cmd} <link grupo/canal> | <texto> | <botón> | <sitio web>\n` +
                 `${prefijo + cmd} <texto> | <botón> | <sitio web>`
             )
 
@@ -213,22 +213,26 @@ export default {
         let displayText = ""
         let urlWeb = ""
 
-        const posibleGrupo =
+        let esCanal = false
+
+        const posibleCanal =
             partes[0]?.match(
-                /(?:https?:\/\/)?chat\.whatsapp\.com\/([0-9A-Za-z]+)/
+                /(?:https?:\/\/)?(?:www\.)?whatsapp\.com\/channel\/([0-9A-Za-z]+)/
             )
 
-        if (posibleGrupo) {
+        if (posibleCanal) {
+
+            esCanal = true
 
             if (partes.length < 4)
                 return m.reply(
                     `${m.e.warn} Formato incorrecto.\n\n` +
                     `Usa:\n` +
-                    `${prefijo + cmd} link del grupo | texto | botón | sitio web`
+                    `${prefijo + cmd} link del canal | texto | botón | sitio web`
                 )
 
-            const groupCode =
-                posibleGrupo[1]
+            const channelCode =
+                posibleCanal[1]
 
             texto =
                 partes[1]
@@ -244,69 +248,135 @@ export default {
 
             try {
 
-                const info =
-                    await conn.groupGetInviteInfo(
-                        groupCode
+                if (
+                    typeof conn.newsletterMetadata !== "function"
+                )
+                    throw new Error(
+                        "Tu versión de Baileys no soporta canales/newsletters."
                     )
 
-                if (info?.id)
+                const metadata =
+                    await conn.newsletterMetadata(
+                        "invite",
+                        channelCode
+                    )
+
+                if (metadata?.id)
                     targetChat =
-                        info.id
+                        metadata.id
 
-            } catch {}
+            } catch (error) {
 
-            if (!targetChat) {
-
-                try {
-
-                    const joined =
-                        await conn.groupAcceptInvite(
-                            groupCode
-                        )
-
-                    if (
-                        typeof joined === "string" &&
-                        joined.includes("@g.us")
-                    )
-                        targetChat =
-                            joined
-
-                } catch {}
+                console.error(
+                    "❌ Error obteniendo canal:",
+                    error
+                )
             }
 
             if (!targetChat)
                 return m.reply(
-                    "❌ No pude identificar el grupo. El enlace puede estar vencido, ser inválido o el bot no puede acceder al grupo."
+                    "❌ No pude identificar el canal de WhatsApp. Verifica que el enlace sea válido."
+                )
+        }
+
+        else {
+
+            const posibleGrupo =
+                partes[0]?.match(
+                    /(?:https?:\/\/)?chat\.whatsapp\.com\/([0-9A-Za-z]+)/
                 )
 
-        } else {
+            if (posibleGrupo) {
 
-            if (!m.isGroup)
-                return m.reply(
-                    "❌ Este formato debe ejecutarse dentro de un grupo."
-                )
+                if (partes.length < 4)
+                    return m.reply(
+                        `${m.e.warn} Formato incorrecto.\n\n` +
+                        `Usa:\n` +
+                        `${prefijo + cmd} link del grupo | texto | botón | sitio web`
+                    )
 
-            if (partes.length < 3)
-                return m.reply(
-                    `${m.e.warn} Formato incorrecto.\n\n` +
-                    `Usa:\n` +
-                    `${prefijo + cmd} texto | botón | sitio web`
-                )
+                const groupCode =
+                    posibleGrupo[1]
 
-            targetChat =
-                m.chat
+                texto =
+                    partes[1]
 
-            texto =
-                partes[0]
+                displayText =
+                    partes[2]
 
-            displayText =
-                partes[1]
+                urlWeb =
+                    partes
+                        .slice(3)
+                        .join("|")
+                        .trim()
 
-            urlWeb =
-                partes
-                    .slice(2)
-                    .join("|")
-                    .trim()
+                try {
+
+                    const info =
+                        await conn.groupGetInviteInfo(
+                            groupCode
+                        )
+
+                    if (info?.id)
+                        targetChat =
+                            info.id
+
+                } catch {}
+
+                if (!targetChat) {
+
+                    try {
+
+                        const joined =
+                            await conn.groupAcceptInvite(
+                                groupCode
+                            )
+
+                        if (
+                            typeof joined === "string" &&
+                            joined.includes("@g.us")
+                        )
+                            targetChat =
+                                joined
+
+                    } catch {}
+                }
+
+                if (!targetChat)
+                    return m.reply(
+                        "❌ No pude identificar el grupo. El enlace puede estar vencido, ser inválido o el bot no puede acceder al grupo."
+                    )
+            }
+
+            else {
+
+                if (!m.isGroup)
+                    return m.reply(
+                        "❌ Este formato debe ejecutarse dentro de un grupo."
+                    )
+
+                if (partes.length < 3)
+                    return m.reply(
+                        `${m.e.warn} Formato incorrecto.\n\n` +
+                        `Usa:\n` +
+                        `${prefijo + cmd} texto | botón | sitio web`
+                    )
+
+                targetChat =
+                    m.chat
+
+                texto =
+                    partes[0]
+
+                displayText =
+                    partes[1]
+
+                urlWeb =
+                    partes
+                        .slice(2)
+                        .join("|")
+                        .trim()
+            }
         }
 
         if (!texto)
@@ -343,34 +413,38 @@ export default {
                 "❌ El sitio web no es válido.\n\nEjemplo:\nhttps://www.instagram.com/edi504_/"
             )
         }
+        let users = []
 
-        const metadata =
-            await conn
-                .groupMetadata(targetChat)
-                .catch(() => null)
+        if (!esCanal) {
 
-        if (!metadata)
-            return m.reply(
-                "❌ No pude obtener la información del grupo."
-            )
+            const metadata =
+                await conn
+                    .groupMetadata(targetChat)
+                    .catch(() => null)
 
-        const botJid =
-            conn.user?.id ||
-            conn.user?.jid
-
-        const users =
-            metadata.participants
-                .map(u => u.id)
-                .filter(
-                    id =>
-                        id &&
-                        id !== botJid
+            if (!metadata)
+                return m.reply(
+                    "❌ No pude obtener la información del grupo."
                 )
 
-        if (!users.length)
-            return m.reply(
-                "❌ No encontré participantes para mencionar."
-            )
+            const botJid =
+                conn.user?.id ||
+                conn.user?.jid
+
+            users =
+                metadata.participants
+                    .map(u => u.id)
+                    .filter(
+                        id =>
+                            id &&
+                            id !== botJid
+                    )
+
+            if (!users.length)
+                return m.reply(
+                    "❌ No encontré participantes para mencionar."
+                )
+        }
 
         let actual =
             encontrarMedia(
@@ -398,6 +472,7 @@ export default {
 
         let tipo = "image"
         let buffer = null
+
         if (actual && mediaSource) {
 
             try {
@@ -505,6 +580,14 @@ export default {
                             media.videoMessage
                     }
 
+            const contextInfo =
+                esCanal
+                    ? {}
+                    : {
+                        mentionedJid:
+                            users
+                    }
+
             const mensaje =
                 generateWAMessageFromContent(
                     targetChat,
@@ -538,16 +621,15 @@ export default {
                                 ]
                             },
 
-                            contextInfo: {
-                                mentionedJid:
-                                    users
-                            }
+                            contextInfo
                         }
                     },
                     {
                         userJid:
                             conn.user.id,
-                        quoted: null
+
+                        quoted:
+                            null
                     }
                 )
 
@@ -577,4 +659,4 @@ export default {
             )
         }
     }
-                  }
+}
